@@ -16,6 +16,8 @@ export interface DaemonConfig {
   sourceMode: SourceMode;
   /** Pastas observadas: cada subpasta com um playzin.json conta como cartucho inserido. */
   slotDirs: string[];
+  /** Pastas que são, elas mesmas, um possível cartucho (no Windows: a raiz de cada unidade, E:\\ etc.). */
+  driveRoots: string[];
   pollIntervalMs: number;
   /** Onde ficam os saves dos jogos (um JSON por jogo). */
   savesDir: string;
@@ -25,6 +27,19 @@ function parseList(value: string | undefined): string[] | undefined {
   if (!value) return undefined;
   const items = value.split(',').map((s) => s.trim()).filter(Boolean);
   return items.length > 0 ? items.map((p) => path.resolve(p)) : undefined;
+}
+
+/**
+ * No Windows, pendrives aparecem como unidades (E:\\, F:\\...): o cartucho é a raiz da unidade.
+ * A unidade do sistema (C:) e A:/B: (disquete, lentas para consultar) ficam de fora.
+ */
+function defaultDriveRoots(): string[] {
+  if (os.platform() !== 'win32') return [];
+  const system = (process.env.SystemDrive ?? 'C:').toUpperCase()[0];
+  return 'DEFGHIJKLMNOPQRSTUVWXYZ'
+    .split('')
+    .filter((letter) => letter !== system)
+    .map((letter) => `${letter}:\\`);
 }
 
 function defaultSlotDirs(): string[] {
@@ -50,6 +65,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaemonConfig {
     launcherDir: path.resolve(env.PLAYZIN_LAUNCHER_DIR ?? path.join(REPO_ROOT, 'packages/launcher/dist')),
     sourceMode: mode,
     slotDirs: parseList(env.PLAYZIN_SLOT_DIRS) ?? defaultSlotDirs(),
+    driveRoots: parseList(env.PLAYZIN_DRIVE_ROOTS) ?? defaultDriveRoots(),
     pollIntervalMs: Number(env.PLAYZIN_POLL_MS ?? 1000),
     // No Pi o systemd define /var/lib/playzin/saves; no computador fica dentro do projeto.
     savesDir: path.resolve(env.PLAYZIN_SAVES_DIR ?? path.join(REPO_ROOT, '.playzin-data', 'saves')),

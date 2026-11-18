@@ -54,7 +54,9 @@ export class CartridgeManager extends EventEmitter<CartridgeManagerEvents> {
     if (!active || active.info.slotId !== slotId) return undefined;
     const root = path.resolve(active.rootPath);
     const target = path.resolve(root, relativePath);
-    if (target !== root && !target.startsWith(root + path.sep)) return undefined;
+    // Raiz de unidade (E:\\) ou "/" já terminam com o separador: não duplicar.
+    const prefix = root.endsWith(path.sep) ? root : root + path.sep;
+    if (target !== root && !target.startsWith(prefix)) return undefined;
     return target;
   }
 

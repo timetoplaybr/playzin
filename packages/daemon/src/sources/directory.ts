@@ -19,6 +19,8 @@ export class DirectorySource extends CartridgeSource {
   constructor(
     private readonly roots: string[],
     private readonly intervalMs = 1000,
+    /** Pastas que são, elas mesmas, um possível cartucho (raiz de unidade no Windows). */
+    private readonly directRoots: string[] = [],
   ) {
     super();
   }
@@ -38,6 +40,9 @@ export class DirectorySource extends CartridgeSource {
     this.scanning = true;
     try {
       const found = new Set<string>();
+      for (const root of this.directRoots) {
+        if (await fileExists(path.join(root, MANIFEST_FILE))) found.add(root);
+      }
       for (const root of this.roots) {
         for (const candidate of await listSubdirs(root)) {
           if (await fileExists(path.join(candidate, MANIFEST_FILE))) found.add(candidate);

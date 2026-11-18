@@ -26,7 +26,7 @@ async function main(): Promise<void> {
     for (const dir of config.slotDirs) {
       if (dir.endsWith('dev-slot')) fs.mkdirSync(dir, { recursive: true });
     }
-    sources.push(new DirectorySource(config.slotDirs, config.pollIntervalMs));
+    sources.push(new DirectorySource(config.slotDirs, config.pollIntervalMs, config.driveRoots));
   }
 
   for (const source of sources) {
@@ -38,7 +38,10 @@ async function main(): Promise<void> {
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
-  if (config.sourceMode !== 'udisks') app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
+  if (config.sourceMode !== 'udisks') {
+    app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
+    if (config.driveRoots.length) app.log.info(`unidades observadas: ${config.driveRoots.map((d) => d.slice(0, 2)).join(' ')}`);
+  }
 
   const shutdown = async () => {
     for (const source of sources) await source.stop();

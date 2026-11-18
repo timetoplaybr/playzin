@@ -39,7 +39,8 @@ npm run cart:insert     # "insere" o cartucho de exemplo (copia para dev-slot/)
 npm run cart:eject      # remove todos os cartuchos do dev-slot
 ```
 
-**Com um pendrive de verdade (Mac):** o daemon também observa `/Volumes`. Copie o cartucho
+**Com um pendrive de verdade:** no Mac, o daemon observa `/Volumes`; no Windows, a raiz de cada
+unidade (D:, E:, F:… menos a do sistema). Copie o cartucho
 para a raiz do pendrive e plugue:
 
 ```bash
@@ -205,6 +206,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 | `PLAYZIN_HOST` | `127.0.0.1` | Interface (só local, de propósito) |
 | `PLAYZIN_SOURCE` | `auto` | `dir` (pastas), `udisks` (D-Bus, Pi) ou `auto` |
 | `PLAYZIN_SLOT_DIRS` | `dev-slot` (+ `/Volumes` no Mac) | Pastas observadas, separadas por vírgula |
+| `PLAYZIN_DRIVE_ROOTS` | no Windows: `D:\` a `Z:\` (menos a do sistema) | Pastas que são, elas mesmas, um cartucho |
 | `PLAYZIN_POLL_MS` | `1000` | Intervalo de verificação das pastas |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 
