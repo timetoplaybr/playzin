@@ -1,0 +1,20 @@
+{
+  "name": "hello-playzin",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "cartucho": "playzin insert",
+    "cartucho:pendrive": "playzin pack"
+  },
+  "dependencies": {
+    "phaser": "^4.2.1"
+  },
+  "devDependencies": {
+    "playzin": "0.1.0",
+    "typescript": "^5.9.0",
+    "vite": "^8.3.0"
+  }
+}

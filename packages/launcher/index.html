@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Playzin</title>
+    <link rel="icon" href="data:," />
+  </head>
+  <body class="hide-cursor">
+    <!-- Tela inicial: desenhada numa "tela" fixa de 1280x720 e escalada para a TV -->
+    <div id="viewport">
+      <main id="home" class="stage" aria-label="Tela inicial do Playzin"></main>
+    </div>
+
+    <iframe id="cartridge-frame" title="Jogo" allow="autoplay; fullscreen; gamepad" hidden></iframe>
+
+    <div id="loading" hidden>
+      <div class="spinner"></div>
+      <p id="loading-text">Carregando…</p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

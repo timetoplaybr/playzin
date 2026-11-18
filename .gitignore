@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.DS_Store
+
+# Cartuchos "inseridos" no modo de desenvolvimento
+dev-slot/*
+!dev-slot/.gitkeep
+.playzin-data/

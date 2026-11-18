@@ -1,0 +1,10 @@
+{
+  "id": "hello-playzin",
+  "name": "Hello Playzin",
+  "version": "0.1.0",
+  "entry": "index.html",
+  "description": "Cartucho de exemplo: colete as estrelas e teste teclado e controle.",
+  "cover": "cover.png",
+  "players": 1,
+  "author": "Diego"
+}

@@ -1,0 +1,33 @@
+{
+  "name": "playzin",
+  "version": "0.1.0",
+  "description": "Ferramenta dos cartuchos Playzin: prepara, valida, testa e grava jogos para o console. Inclui o SDK (playzin/sdk).",
+  "type": "module",
+  "bin": {
+    "playzin": "./dist/cli.js"
+  },
+  "exports": {
+    "./sdk": {
+      "types": "./dist/sdk.d.ts",
+      "import": "./dist/sdk.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playzin/sdk": "0.1.0",
+    "@playzin/shared": "0.1.0",
+    "@types/node": "^22.0.0",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,22 @@
+[Unit]
+Description=Playzin daemon (cartuchos, servidor local e WebSocket)
+After=network.target udisks2.service
+Wants=udisks2.service
+
+[Service]
+Type=simple
+User=playzin
+Group=playzin
+WorkingDirectory=/opt/playzin
+Environment=NODE_ENV=production
+Environment=PLAYZIN_SOURCE=udisks
+Environment=PLAYZIN_PORT=7777
+# Saves dos jogos: o systemd cria /var/lib/playzin com dono "playzin"
+StateDirectory=playzin
+Environment=PLAYZIN_SAVES_DIR=/var/lib/playzin/saves
+ExecStart=/usr/bin/node /opt/playzin/packages/daemon/dist/main.js
+Restart=always
+RestartSec=1
+
+[Install]
+WantedBy=multi-user.target

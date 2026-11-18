@@ -1,0 +1,28 @@
+[Unit]
+Description=Playzin kiosk (cage + Chromium em tela cheia na TV)
+After=systemd-user-sessions.service plymouth-quit-wait.service playzin-daemon.service
+Wants=playzin-daemon.service
+Conflicts=getty@tty1.service
+After=getty@tty1.service
+
+[Service]
+Type=simple
+User=playzin
+PAMName=playzin-kiosk
+TTYPath=/dev/tty1
+TTYReset=yes
+TTYVHangup=yes
+TTYVTDisallocate=yes
+StandardInput=tty-fail
+StandardOutput=journal
+StandardError=journal
+UtmpIdentifier=tty1
+UtmpMode=user
+Environment=XDG_SESSION_TYPE=wayland
+# -d: sem decorações de janela; -s: permite trocar de TTY (Ctrl+Alt+F2) para manutenção
+ExecStart=/usr/bin/cage -d -s -- /opt/playzin/scripts/pi/kiosk.sh
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=graphical.target
