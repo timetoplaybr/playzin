@@ -21,13 +21,40 @@ type Tile =
   | { kind: 'recent'; key: string; entry: LibraryEntry }
   | { kind: 'empty'; key: string };
 
-type SystemId = 'controllers' | 'saves' | 'settings' | 'power';
-const SYSTEM_BUTTONS: { id: SystemId; label: string; icon: string }[] = [
-  { id: 'controllers', label: 'Controles', icon: icons.gamepad },
-  { id: 'saves', label: 'Dados salvos', icon: icons.save },
-  { id: 'settings', label: 'Configurações', icon: icons.settings },
-  { id: 'power', label: 'Desligar', icon: icons.power },
-];
+type SystemId = 'controllers' | 'saves' | 'settings' | 'fullscreen' | 'power';
+interface SystemButton {
+  id: SystemId;
+  label: string;
+  icon: string;
+}
+
+/** Ícones de sistema. "Tela cheia" só aparece quando a janela ainda não ocupa a tela toda. */
+function systemButtons(): SystemButton[] {
+  const list: SystemButton[] = [
+    { id: 'controllers', label: 'Controles', icon: icons.gamepad },
+    { id: 'saves', label: 'Dados salvos', icon: icons.save },
+    { id: 'settings', label: 'Configurações', icon: icons.settings },
+  ];
+  if (isFullscreen()) list.push({ id: 'fullscreen', label: 'Sair da tela cheia', icon: icons.shrink });
+  else if (canGoFullscreen()) list.push({ id: 'fullscreen', label: 'Tela cheia', icon: icons.expand });
+  list.push({ id: 'power', label: 'Desligar', icon: icons.power });
+  return list;
+}
+
+/** Tela cheia pedida pelo próprio console (Fullscreen API). */
+function isFullscreen(): boolean {
+  return document.fullscreenElement !== null;
+}
+
+/**
+ * Dá para pedir tela cheia? Não quando o navegador já ocupa a tela inteira por conta
+ * própria: modo quiosque (como no Raspberry Pi), F11 ou o botão verde do Mac.
+ */
+function canGoFullscreen(): boolean {
+  if (!document.fullscreenEnabled) return false;
+  const coversScreen = window.innerWidth >= screen.width && window.innerHeight >= screen.height;
+  return !coversScreen;
+}
 
 type Panel = 'controllers' | 'saves' | 'settings' | null;
 
@@ -48,6 +75,8 @@ export class HomeUI {
   private systemIndex = 0;
   private focusKey: string | null = null;
   private panel: Panel = null;
+  private sysButtons: SystemButton[] = [];
+  private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
   private saves: SaveSummary[] | null = null;
   private saveIndex = 0;
@@ -114,6 +143,13 @@ export class HomeUI {
     };
 
     this.buildSystemRow();
+    // A linha de sistema muda quando entra/sai da tela cheia (ícone e texto do botão).
+    document.addEventListener('fullscreenchange', () => this.buildSystemRow());
+    window.addEventListener('resize', () => this.buildSystemRow());
+    // Atalho de teclado: F alterna a tela cheia (no menu).
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyF' && !e.repeat && this.active && !this.panel) void this.toggleFullscreen();
+    });
     this.el.backdrop.addEventListener('click', (e) => {
       if (e.target === this.el.backdrop) this.closePanel();
     });
@@ -259,8 +295,18 @@ export class HomeUI {
   // ---------------------------------------------------------------- linha de sistema
 
   private buildSystemRow(): void {
+    const buttons = systemButtons();
+    const signature = buttons.map((b) => `${b.id}:${b.label}`).join('|');
+    if (signature === this.sysSignature) return;
+    // Mantém o foco no mesmo botão (pelo id), mesmo que a lista mude.
+    const focusedId = this.sysButtons[this.systemIndex]?.id;
+    this.sysButtons = buttons;
+    this.sysSignature = signature;
+    const kept = buttons.findIndex((b) => b.id === focusedId);
+    this.systemIndex = kept >= 0 ? kept : clamp(this.systemIndex, 0, buttons.length - 1);
+
     this.el.system.replaceChildren(
-      ...SYSTEM_BUTTONS.map((btn, i) => {
+      ...buttons.map((btn, i) => {
         const node = document.createElement('button');
         node.className = 'sys-btn';
         node.dataset.id = btn.id;
@@ -276,6 +322,7 @@ export class HomeUI {
         return node;
       }),
     );
+    if (this.tiles.length) this.applyFocus();
   }
 
   // ---------------------------------------------------------------- foco
@@ -323,7 +370,7 @@ export class HomeUI {
         this.sounds.move();
       }
     } else if (dx !== 0 && this.row === 'system') {
-      const next = clamp(this.systemIndex + dx, 0, SYSTEM_BUTTONS.length - 1);
+      const next = clamp(this.systemIndex + dx, 0, this.sysButtons.length - 1);
       if (next !== this.systemIndex) {
         this.systemIndex = next;
         this.sounds.move();
@@ -335,7 +382,7 @@ export class HomeUI {
   // ---------------------------------------------------------------- ações
 
   private activate(): void {
-    if (this.row === 'system') return this.activateSystem(SYSTEM_BUTTONS[this.systemIndex].id);
+    if (this.row === 'system') return this.activateSystem(this.sysButtons[this.systemIndex].id);
 
     const tile = this.tiles[this.tileIndex];
     if (!tile) return;
@@ -364,6 +411,7 @@ export class HomeUI {
   }
 
   private activateSystem(id: SystemId): void {
+    if (id === 'fullscreen') return void this.toggleFullscreen();
     if (id === 'power') {
       this.sounds.error();
       this.showToast('Para desligar, use o botão do console');
@@ -371,6 +419,37 @@ export class HomeUI {
     }
     this.sounds.select();
     this.openPanel(id);
+  }
+
+  /**
+   * Entra ou sai da tela cheia. O navegador só aceita depois de uma tecla ou clique:
+   * apertar A no controle não conta, então nesse caso mostramos como fazer.
+   * No Chrome/Edge, a tecla Esc fica "presa" ao console (Keyboard Lock): assim o Esc
+   * continua servindo para os jogos e para voltar ao menu, e sair da tela cheia passa a ser
+   * segurando Esc por alguns segundos (ou por este mesmo botão).
+   */
+  private async toggleFullscreen(): Promise<void> {
+    const keyboard = (navigator as Navigator & { keyboard?: { lock?(keys: string[]): Promise<void>; unlock?(): void } })
+      .keyboard;
+    try {
+      if (isFullscreen()) {
+        keyboard?.unlock?.();
+        await document.exitFullscreen();
+        this.sounds.back();
+        return;
+      }
+      await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+      this.sounds.select();
+      try {
+        await keyboard?.lock?.(['Escape']);
+        this.showToast('Tela cheia: para sair, segure Esc ou use o botão de novo');
+      } catch {
+        this.showToast('Tela cheia: para sair, aperte Esc ou use o botão de novo');
+      }
+    } catch {
+      this.sounds.error();
+      this.showToast('Para a tela cheia, aperte Enter ou F, ou clique no botão (o navegador não aceita pelo controle)');
+    }
   }
 
   private focusedTileNode(): HTMLElement | undefined {

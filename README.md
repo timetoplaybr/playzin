@@ -54,7 +54,9 @@ Para os seus jogos, use o comando `playzin` dentro da pasta de cada um (próxima
 - **Fileira de jogos:** o cartucho inserido aparece primeiro; os jogos que já passaram pelo
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
 - **Ícones de sistema:** Controles (lista os controles conectados), Dados salvos (progresso de cada
-  jogo, com opção de apagar) e Configurações (versão, status).
+  jogo, com opção de apagar), Configurações (versão, status) e Tela cheia (também pela tecla **F**).
+  O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
+  No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
 - Navegue com direcional/setas, mouse (clique seleciona, segundo clique abre) ou controle.
 
 | Ação | Teclado | Controle |
