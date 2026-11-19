@@ -3,6 +3,7 @@ import path from 'node:path';
 import {
   PLAYTIME_MAX_CHUNK_SECONDS,
   PROFILE_ID_PATTERN,
+  type GamePlaytime,
   type PlaytimeEntry,
   type PlaytimeSummary,
 } from '@playzin/shared';
@@ -75,6 +76,21 @@ export class PlaytimeStore {
     const out: Record<string, number> = {};
     for (const id of profiles) out[id] = (await this.summary(id).catch(() => null))?.totalSeconds ?? 0;
     return out;
+  }
+
+  /** Quanto cada perfil jogou de um jogo. */
+  async byGame(profiles: string[], game: string): Promise<GamePlaytime> {
+    if (!GAME_ID_PATTERN.test(game)) throw new Error('jogo inválido');
+    const players: GamePlaytime['players'] = [];
+    let name = game;
+    for (const profile of profiles) {
+      const entry = (await this.load(profile)).games[game];
+      if (!entry || entry.seconds <= 0) continue;
+      name = entry.name;
+      players.push({ profile, seconds: entry.seconds, sessions: entry.sessions, lastPlayedAt: entry.lastPlayedAt });
+    }
+    players.sort((a, b) => b.seconds - a.seconds);
+    return { id: game, name, totalSeconds: players.reduce((sum, p) => sum + p.seconds, 0), players };
   }
 
   /** O perfil foi excluído (a pasta já sumiu junto com os saves). */

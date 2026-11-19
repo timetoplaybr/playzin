@@ -173,6 +173,15 @@ export interface PlaytimeSummary {
   games: PlaytimeEntry[];
 }
 
+/** Quanto cada perfil jogou de um jogo (GET /api/playtime/game/:id). */
+export interface GamePlaytime {
+  id: string;
+  name: string;
+  totalSeconds: number;
+  /** Só perfis que já jogaram, mais tempo primeiro. */
+  players: { profile: string; seconds: number; sessions: number; lastPlayedAt: string }[];
+}
+
 /** Maior pedaço de tempo aceito num único aviso do launcher (o launcher avisa a cada 30 s). */
 export const PLAYTIME_MAX_CHUNK_SECONDS = 120;
 

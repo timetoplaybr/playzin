@@ -6,6 +6,7 @@ import { ControllersPanel } from './controllers-panel';
 import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
+import { ActivityPanel } from './activity-panel';
 import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
@@ -30,7 +31,7 @@ type Tile =
   | { kind: 'recent'; key: string; entry: LibraryEntry }
   | { kind: 'empty'; key: string };
 
-type SystemId = 'controllers' | 'wifi' | 'saves' | 'settings' | 'fullscreen' | 'power';
+type SystemId = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | 'fullscreen' | 'power';
 interface SystemButton {
   id: SystemId;
   label: string;
@@ -42,6 +43,7 @@ function systemButtons(): SystemButton[] {
   const list: SystemButton[] = [
     { id: 'controllers', label: 'Controles', icon: icons.gamepad },
     { id: 'wifi', label: 'Wi-Fi', icon: icons.wifi },
+    { id: 'activity', label: 'Atividade', icon: icons.activity },
     { id: 'saves', label: 'Dados salvos', icon: icons.save },
     { id: 'settings', label: 'Configurações', icon: icons.settings },
   ];
@@ -66,7 +68,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'saves' | 'settings' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -87,6 +89,7 @@ export class HomeUI {
   private panel: Panel = null;
   private readonly ctrlPanel: ControllersPanel;
   private readonly wifiPanel: WifiPanel;
+  private readonly activityPanel: ActivityPanel;
   private readonly keyboard: VirtualKeyboard;
   private readonly profileScreen: ProfileScreen;
   /** Abertura ao ligar (some sozinha, ou com qualquer botão). */
@@ -174,6 +177,13 @@ export class HomeUI {
     });
     this.keyboard = new VirtualKeyboard(root, sounds);
     this.splash = new BootSplash(root, sounds);
+    this.activityPanel = new ActivityPanel({
+      store,
+      library,
+      sounds,
+      host: () => this.el.panel,
+      hintsChanged: () => this.renderHints(),
+    });
     this.wifiPanel = new WifiPanel({
       store,
       sounds,
@@ -311,6 +321,7 @@ export class HomeUI {
     }
     this.renderPlaytime();
     if (this.panel === 'saves' || this.panel === 'settings') this.renderPanel();
+    if (this.panel === 'activity') this.activityPanel.reload();
   }
 
   private renderPlaytime(): void {
@@ -650,6 +661,8 @@ export class HomeUI {
     this.panel = panel;
     if (panel === 'controllers') this.ctrlPanel.open();
     if (panel === 'wifi') this.wifiPanel.open();
+    if (panel === 'activity') this.activityPanel.open();
+    this.el.panel.classList.toggle('wide', panel === 'activity');
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -759,6 +772,8 @@ export class HomeUI {
     } else if (this.panel === 'wifi') {
       this.wifiPanel.render(this.el.panel);
       this.renderHints();
+    } else if (this.panel === 'activity') {
+      this.activityPanel.render();
     } else if (this.panel === 'settings') {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
@@ -811,6 +826,8 @@ export class HomeUI {
       html = this.ctrlPanel.hints(hint);
     } else if (this.panel === 'wifi') {
       html = this.wifiPanel.hints(hint);
+    } else if (this.panel === 'activity') {
+      html = this.activityPanel.hints(hint);
     } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel) {
@@ -870,6 +887,14 @@ export class HomeUI {
 
     if (this.panel === 'wifi') {
       const result = this.wifiPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
+    if (this.panel === 'activity') {
+      const result = this.activityPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
         repeatPressed: (a) => this.repeatPressed(a),
       });

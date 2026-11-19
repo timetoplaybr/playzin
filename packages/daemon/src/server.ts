@@ -246,6 +246,13 @@ export async function createServer(
   app.get('/api/playtime/totals', async () => ({
     totals: await playtime.totals(profiles.list().map((p) => p.id)),
   }));
+  app.get<{ Params: { game: string } }>('/api/playtime/game/:game', async (req, reply) => {
+    try {
+      return await playtime.byGame(profiles.list().map((p) => p.id), req.params.game);
+    } catch (err) {
+      return reply.code(400).send({ error: (err as Error).message });
+    }
+  });
   app.post<{ Params: { profile: string; game: string }; Body: { seconds?: unknown; name?: unknown; session?: unknown } }>(
     '/api/playtime/:profile/:game',
     async (req, reply) => {

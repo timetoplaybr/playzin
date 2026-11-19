@@ -58,7 +58,8 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
 - **Perfil:** o avatar no canto superior esquerdo mostra quem está jogando; suba até ele (ou clique)
   para trocar de perfil. Veja [Perfis](#perfis-até-4-pessoas-por-console).
-- **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Dados salvos (progresso de cada
+- **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Atividade (tempo
+  de jogo do perfil, jogo a jogo, e quanto cada perfil jogou de cada um), Dados salvos (progresso de cada
   jogo, com opção de apagar), Configurações (versão, status) e Tela cheia (também pela tecla **F**).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
   No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
@@ -227,6 +228,8 @@ por perfil; Wi-Fi, controles pareados e a lista de jogos da tela inicial valem p
 
 **Tempo de jogo:** o console conta quanto cada perfil jogou de cada jogo. Aparece ao lado do nome
 do jogo na tela inicial, em *Dados salvos*, em *Configurações* (total) e em *Quem vai jogar?*.
+A tela **Atividade** lista os jogos do perfil do mais jogado para o menos jogado, com tempo,
+quantas vezes abriu e quando jogou por último; A num jogo mostra quanto cada perfil jogou dele.
 Só conta o tempo jogando de verdade: para com a janela escondida e depois de 10 minutos sem
 ninguém mexer em controle, teclado ou mouse. O launcher envia o tempo a cada 30 s, então desligar
 na tomada perde no máximo isso.

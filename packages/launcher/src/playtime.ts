@@ -138,3 +138,19 @@ export function formatPlaytime(seconds: number): string {
 function newSessionId(): string {
   return `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
+
+/** "Hoje, 10:31", "Ontem", "há 3 dias", "05/11". */
+export function formatLastPlayed(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((startOf(new Date()) - startOf(d)) / 86_400_000);
+  if (days <= 0) return `Hoje, ${d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+  if (days === 1) return 'Ontem';
+  if (days < 7) return `há ${days} dias`;
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+}
+
+export function formatSessions(n: number): string {
+  return n === 1 ? '1 vez' : `${n} vezes`;
+}
