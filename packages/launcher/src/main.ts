@@ -25,6 +25,7 @@ fitStage();
 const frame = new GameFrame(() => {
   // Voltou do jogo pelo atalho ou pelo SDK: o cartucho continua inserido.
   home.setActive(true);
+  void frame.lastPlaytimeSaved.then(() => home.refreshPlaytime());
   sounds.back();
   const { cartridge } = store.get();
   store.update({ status: cartridge ? 'ready' : 'empty' });
@@ -44,6 +45,7 @@ function stopPlaying(): void {
   if (!frame.isOpen) return;
   frame.close();
   home.setActive(true);
+  void frame.lastPlaytimeSaved.then(() => home.refreshPlaytime());
 }
 
 const home = new HomeUI(stage, store, library, sounds, { play });

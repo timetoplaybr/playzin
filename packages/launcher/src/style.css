@@ -230,6 +230,18 @@ svg {
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
 
+.tile-time {
+  margin-left: 14px;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.tile-time:not(:empty)::before {
+  content: '·';
+  margin-right: 14px;
+}
+
 .tile.focused .tile-title {
   opacity: 1;
   transform: translateY(0);
@@ -1162,6 +1174,12 @@ svg {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.pf-time {
+  margin-top: -10px;
+  font-size: 16px;
+  color: var(--muted);
 }
 
 .pf-card:not(.focused) .pf-name {

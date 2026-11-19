@@ -1,5 +1,6 @@
 import { GamepadButton, getConnectedGamepads } from '@playzin/sdk';
 import type { CartridgeInfo, GameToLauncherMessage } from '@playzin/shared';
+import { PlaytimeTracker } from './playtime';
 
 const HOLD_TO_EXIT_MS = 1000;
 
@@ -31,6 +32,9 @@ export class GameFrame {
   private escSince: number | null = null;
   private escTimer: number | undefined;
   private detachKeyboard: (() => void) | undefined;
+  private readonly playtime = new PlaytimeTracker();
+  /** Resolve quando o tempo da última partida foi guardado pelo daemon. */
+  lastPlaytimeSaved: Promise<void> = Promise.resolve();
 
   constructor(private readonly onExit: () => void) {
     window.addEventListener('message', (event) => this.onMessage(event));
@@ -50,8 +54,10 @@ export class GameFrame {
     url.searchParams.set('playzin', '1');
     if (profileId) url.searchParams.set('profile', profileId);
 
+    if (profileId) this.playtime.start(profileId, cartridge.manifest.id, cartridge.manifest.name);
     this.frame.onload = () => {
       this.attachKeyboard();
+      this.playtime.watchWindow(this.frame.contentWindow);
       // Jogos sem o SDK nunca mandam "ready": mostramos mesmo assim.
       window.setTimeout(() => this.reveal(), READY_FALLBACK_MS);
     };
@@ -63,6 +69,7 @@ export class GameFrame {
   close(): void {
     if (!this.current) return;
     this.saveNow();
+    this.lastPlaytimeSaved = this.playtime.stop();
     this.current = null;
     if (this.rafId !== undefined) cancelAnimationFrame(this.rafId);
     this.rafId = undefined;

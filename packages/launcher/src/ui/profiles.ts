@@ -10,6 +10,7 @@ import {
 import type { ConsoleStore } from '../store';
 import { icons, profileIcons } from './icons';
 import type { VirtualKeyboard } from './keyboard';
+import { formatPlaytime } from '../playtime';
 import type { Sounds } from './sounds';
 import type { PanelInput } from './wifi-panel';
 
@@ -99,6 +100,8 @@ export class ProfileScreen {
   private busy = false;
   /** Elementos da vista atual, para só atualizar o que muda (sem piscar). */
   private dom: Record<string, HTMLElement> = {};
+  /** Tempo total jogado por perfil (segundos). */
+  private totals: Record<string, number> = {};
 
   constructor(
     host: HTMLElement,
@@ -172,7 +175,8 @@ export class ProfileScreen {
     const profiles = this.profiles();
     const cards = profiles.map(
       (p, i) =>
-        `<button class="pf-card" data-index="${i}">${avatarHtml(p)}<span class="pf-name">${escapeHtml(p.name)}</span></button>`,
+        `<button class="pf-card" data-index="${i}" data-profile="${p.id}">${avatarHtml(p)}` +
+        `<span class="pf-name">${escapeHtml(p.name)}</span><span class="pf-time"></span></button>`,
     );
     if (profiles.length < MAX_PROFILES) {
       cards.push(
@@ -199,7 +203,20 @@ export class ProfileScreen {
         this.pick();
       }),
     );
+    this.renderTotals();
     this.renderPicker();
+  }
+
+  setTotals(totals: Record<string, number>): void {
+    this.totals = totals;
+    if (this.view === 'picker') this.renderTotals();
+  }
+
+  private renderTotals(): void {
+    this.el.querySelectorAll<HTMLElement>('.pf-card[data-profile]').forEach((card) => {
+      const seconds = this.totals[card.dataset.profile!] ?? 0;
+      card.querySelector('.pf-time')!.textContent = seconds > 0 ? `${formatPlaytime(seconds)} de jogo` : 'Ainda não jogou';
+    });
   }
 
   private renderPicker(): void {

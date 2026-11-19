@@ -9,6 +9,7 @@ import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
 import { isSaveData, MAX_SAVE_BYTES, type SaveData, type SaveStore } from './save-store.js';
 import { ProfileError, type ProfileStore } from './profile-store.js';
+import type { PlaytimeStore } from './playtime-store.js';
 import type { BluetoothController } from './bluetooth/controller.js';
 import type { WifiController } from './wifi/controller.js';
 import { WifiError } from './wifi/types.js';
@@ -19,6 +20,7 @@ export async function createServer(
   manager: CartridgeManager,
   saves: SaveStore,
   profiles: ProfileStore,
+  playtime: PlaytimeStore,
   bluetooth: BluetoothController,
   wifi: WifiController,
 ): Promise<FastifyInstance> {
@@ -227,12 +229,43 @@ export async function createServer(
   app.delete<{ Params: { id: string } }>('/api/profiles/:id', async (req, reply) => {
     try {
       await profiles.remove(req.params.id);
+      playtime.forget(req.params.id);
       for (const key of lastWriteAt.keys()) if (key.startsWith(`${req.params.id}/`)) lastWriteAt.delete(key);
       return reply.code(204).send();
     } catch (err) {
       return profileFail(reply, err);
     }
   });
+
+  // ---- Tempo de jogo por perfil ----
+  app.get<{ Querystring: { profile?: string } }>('/api/playtime', async (req, reply) => {
+    const profile = profiles.get(req.query.profile);
+    if (!profile) return reply.code(404).send({ error: 'perfil desconhecido' });
+    return playtime.summary(profile.id);
+  });
+  app.get('/api/playtime/totals', async () => ({
+    totals: await playtime.totals(profiles.list().map((p) => p.id)),
+  }));
+  app.post<{ Params: { profile: string; game: string }; Body: { seconds?: unknown; name?: unknown; session?: unknown } }>(
+    '/api/playtime/:profile/:game',
+    async (req, reply) => {
+      const profile = profiles.get(req.params.profile);
+      if (!profile) return reply.code(404).send({ error: 'perfil desconhecido' });
+      const { seconds, name, session } = req.body ?? {};
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds) || typeof session !== 'string') {
+        return reply.code(400).send({ error: 'seconds (número) e session são obrigatórios' });
+      }
+      try {
+        return await playtime.add(profile.id, req.params.game, {
+          seconds,
+          session,
+          name: typeof name === 'string' ? name : req.params.game,
+        });
+      } catch (err) {
+        return reply.code(400).send({ error: (err as Error).message });
+      }
+    },
+  );
 
   // ---- Saves de um perfil: tela "Dados salvos" ----
   app.get<{ Querystring: { profile?: string } }>('/api/saves', async (req, reply) => {

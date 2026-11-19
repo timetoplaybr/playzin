@@ -225,8 +225,15 @@ por perfil; Wi-Fi, controles pareados e a lista de jogos da tela inicial valem p
 - **Quem já usava o console antes dos perfis:** os saves existentes passam para o primeiro perfil
   criado. Os perfis seguintes começam do zero em todos os jogos.
 
+**Tempo de jogo:** o console conta quanto cada perfil jogou de cada jogo. Aparece ao lado do nome
+do jogo na tela inicial, em *Dados salvos*, em *Configurações* (total) e em *Quem vai jogar?*.
+Só conta o tempo jogando de verdade: para com a janela escondida e depois de 10 minutos sem
+ninguém mexer em controle, teclado ou mouse. O launcher envia o tempo a cada 30 s, então desligar
+na tomada perde no máximo isso.
+
 Os perfis ficam em `.playzin-data/profiles.json` no computador e em `/var/lib/playzin/profiles.json`
-no Pi; os saves, em uma pasta por perfil (`saves/<perfil>/<jogo>.json`). Os jogos não precisam
+no Pi; os saves, em uma pasta por perfil (`saves/<perfil>/<jogo>.json`, com o tempo de jogo em
+`saves/<perfil>/_playtime.json`). Os jogos não precisam
 saber de nada: o console entrega a cada um só o progresso do perfil que está jogando.
 
 ## Saves: o progresso fica no console
@@ -309,6 +316,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [ ] Testar o Wi-Fi de verdade (NetworkManager) no Raspberry Pi
 - [x] Saves guardados pelo console, isolados por jogo, com a tela Dados salvos
 - [x] Perfis (até 4, com nome, ícone e cor), saves separados por perfil
+- [x] Tempo de jogo por perfil e por jogo
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
 - [ ] Backup dos saves num pendrive
 - [ ] Testar a fonte UDisks2 e o kiosk no hardware real

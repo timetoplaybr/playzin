@@ -1,11 +1,12 @@
 import { ACTIONS, getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
-import type { BluetoothDevice, CartridgeInfo, Profile, SaveSummary } from '@playzin/shared';
+import type { BluetoothDevice, CartridgeInfo, PlaytimeSummary, Profile, SaveSummary } from '@playzin/shared';
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
 import { ControllersPanel } from './controllers-panel';
 import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
+import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
@@ -94,6 +95,9 @@ export class HomeUI {
   private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
   private saves: SaveSummary[] | null = null;
+  /** Tempo de jogo do perfil ativo, por jogo (segundos). */
+  private playtime = new Map<string, number>();
+  private playtimeTotal = 0;
   private saveIndex = 0;
   private confirmDelete: string | null = null;
   private active = true;
@@ -267,6 +271,7 @@ export class HomeUI {
     this.store.update({ profiles, profileId });
     if (profileId) rememberProfile(profileId);
     this.profileScreen.refresh();
+    void this.refreshPlaytime();
     if (!profileId && !this.profileScreen.isOpen && state.status !== 'playing') this.openProfiles();
   }
 
@@ -286,6 +291,34 @@ export class HomeUI {
     this.row = 'tiles';
     this.applyFocus();
     if (changed) this.showToast(`Olá, ${profile.name}!`);
+  }
+
+  /** Busca o tempo de jogo do perfil ativo (e o total de cada perfil, para "Quem vai jogar?"). */
+  async refreshPlaytime(): Promise<void> {
+    const profile = this.store.profile();
+    try {
+      const totals = await fetch('/api/playtime/totals', { cache: 'no-store' }).then((r) => r.json());
+      this.profileScreen.setTotals((totals as { totals?: Record<string, number> }).totals ?? {});
+      if (!profile) return;
+      const res = await fetch(`/api/playtime?profile=${encodeURIComponent(profile.id)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
+      const summary = (await res.json()) as PlaytimeSummary;
+      if (this.store.get().profileId !== profile.id) return; // trocou de perfil no meio
+      this.playtime = new Map(summary.games.map((g) => [g.id, g.seconds]));
+      this.playtimeTotal = summary.totalSeconds;
+    } catch {
+      return; // sem daemon: mantém o que já estava na tela
+    }
+    this.renderPlaytime();
+    if (this.panel === 'saves' || this.panel === 'settings') this.renderPanel();
+  }
+
+  private renderPlaytime(): void {
+    this.el.tiles.querySelectorAll<HTMLElement>('.tile[data-game]').forEach((node) => {
+      const span = node.querySelector('.tile-time');
+      const seconds = this.playtime.get(node.dataset.game!) ?? 0;
+      if (span) span.textContent = seconds > 0 ? formatPlaytime(seconds) : '';
+    });
   }
 
   private renderProfile(): void {
@@ -329,6 +362,7 @@ export class HomeUI {
     this.renderStatus();
     if (state.profiles !== prev.profiles || state.profileId !== prev.profileId) {
       this.renderProfile();
+      if (state.profileId !== prev.profileId) void this.refreshPlaytime();
       // Trocou de perfil com "Dados salvos" aberto: recarrega a lista do novo perfil.
       if (this.panel === 'saves' && state.profileId !== prev.profileId) void this.loadSaves();
       if (this.panel === 'settings') this.renderPanel();
@@ -379,6 +413,7 @@ export class HomeUI {
         return node;
       }),
     );
+    this.renderPlaytime();
     this.applyFocus();
   }
 
@@ -386,6 +421,7 @@ export class HomeUI {
     const node = document.createElement('button');
     node.className = `tile kind-${tile.kind}`;
     node.dataset.key = tile.key;
+    if (tile.kind !== 'empty') node.dataset.game = tile.kind === 'cartridge' ? tile.cartridge.manifest.id : tile.entry.id;
 
     const title = document.createElement('div');
     title.className = 'tile-title';
@@ -400,6 +436,9 @@ export class HomeUI {
       const id = tile.kind === 'cartridge' ? tile.cartridge.manifest.id : tile.entry.id;
       const coverSrc = tile.kind === 'cartridge' ? (tile.cartridge.coverUrl ?? tile.entry?.cover) : tile.entry.cover;
       title.textContent = name;
+      const time = document.createElement('span');
+      time.className = 'tile-time';
+      title.append(time);
       if (coverSrc) {
         const img = document.createElement('img');
         img.src = coverSrc;
@@ -688,7 +727,7 @@ export class HomeUI {
             return (
               `<li class="${i === this.saveIndex ? 'selected' : ''}${confirming ? ' confirming' : ''}" data-index="${i}">` +
               `<span class="save-name">${escapeHtml(s.name)}</span>` +
-              `<span class="save-meta">${confirming ? 'Aperte X de novo para apagar' : `${formatDate(s.updatedAt)} · ${formatBytes(s.bytes)}`}</span>` +
+              `<span class="save-meta">${confirming ? 'Aperte X de novo para apagar' : [formatDate(s.updatedAt), this.playtime.get(s.id) ? `${formatPlaytime(this.playtime.get(s.id)!)} de jogo` : '', formatBytes(s.bytes)].filter(Boolean).join(' · ')}</span>` +
               `<button class="save-delete" data-index="${i}" title="Apagar progresso">${icons.trash}</button></li>`
             );
           })
@@ -727,6 +766,7 @@ export class HomeUI {
         <dl class="info">
           <dt>Versão</dt><dd>Playzin ${VERSION}</dd>
           <dt>Perfil</dt><dd>${escapeHtml(this.store.profile()?.name ?? 'Nenhum')} · ${this.store.get().profiles?.length ?? 0} de 4 no console</dd>
+          <dt>Tempo de jogo</dt><dd>${this.playtimeTotal > 0 ? `${formatPlaytime(this.playtimeTotal)} no total` : 'Nada ainda'}</dd>
           <dt>Sistema</dt><dd>${this.connected ? 'Conectado' : 'Desconectado'}</dd>
           <dt>Rede</dt><dd>${networkLabel(this.store.get().wifi)}</dd>
           <dt>Cartucho</dt><dd>${cartridge ? `${escapeHtml(cartridge.manifest.name)} v${escapeHtml(cartridge.manifest.version)}` : 'Nenhum'}</dd>

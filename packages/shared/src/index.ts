@@ -156,6 +156,26 @@ export interface SaveSummary {
   keys: number;
 }
 
+/** Tempo de jogo de um perfil em um jogo (GET /api/playtime). */
+export interface PlaytimeEntry {
+  id: string;
+  name: string;
+  seconds: number;
+  /** Quantas vezes o jogo foi aberto por este perfil. */
+  sessions: number;
+  firstPlayedAt: string;
+  lastPlayedAt: string;
+}
+
+export interface PlaytimeSummary {
+  totalSeconds: number;
+  /** Mais jogados primeiro. */
+  games: PlaytimeEntry[];
+}
+
+/** Maior pedaço de tempo aceito num único aviso do launcher (o launcher avisa a cada 30 s). */
+export const PLAYTIME_MAX_CHUNK_SECONDS = 120;
+
 export interface ManifestValidation {
   ok: boolean;
   manifest?: CartridgeManifest;
