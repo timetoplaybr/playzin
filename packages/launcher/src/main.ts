@@ -5,7 +5,11 @@ import { Library } from './library';
 import { ConsoleStore } from './store';
 import { HomeUI, STAGE_HEIGHT, STAGE_WIDTH } from './ui/home';
 import { Sounds } from './ui/sounds';
+import { restoreTheme } from './ui/theme';
 import './style.css';
+
+// Cor do menu de quem jogou por último, já na abertura (troca suave quando o perfil entra).
+restoreTheme();
 
 const store = new ConsoleStore();
 const connection = new DaemonConnection();

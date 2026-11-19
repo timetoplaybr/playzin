@@ -81,6 +81,8 @@ interface Deps {
   choose(profile: Profile): void;
   /** O usuário fechou a tela (B) com um perfil já ativo. */
   close(): void;
+  /** Prévia do tema do menu numa cor; null volta ao tema do perfil ativo. */
+  previewTheme(color: ProfileColor | null): void;
   hintsChanged(): void;
 }
 
@@ -135,9 +137,10 @@ export class ProfileScreen {
    * Abre a escolha de perfil (sem nenhum perfil, já abre a criação do primeiro).
    * O foco começa em quem está jogando, ou em quem jogou por último.
    */
-  openPicker(focusId?: string | null): void {
+  openPicker(focusId?: string | null, preferFocus = false): void {
     if (this.profiles().length === 0) return this.openEditor(null);
-    const target = this.deps.store.get().profileId ?? focusId;
+    const active = this.deps.store.get().profileId;
+    const target = preferFocus ? (focusId ?? active) : (active ?? focusId);
     const index = this.profiles().findIndex((p) => p.id === target);
     this.pickIndex = index >= 0 ? index : 0;
     this.view = 'picker';
@@ -147,6 +150,7 @@ export class ProfileScreen {
 
   close(): void {
     this.view = 'closed';
+    this.deps.previewTheme(null);
     this.el.hidden = true;
     this.el.replaceChildren();
     this.dom = {};
@@ -223,6 +227,8 @@ export class ProfileScreen {
     this.el.querySelectorAll<HTMLElement>('.pf-card').forEach((card) => {
       card.classList.toggle('focused', Number(card.dataset.index) === this.pickIndex);
     });
+    // O menu já se veste com a cor de quem está em foco.
+    this.deps.previewTheme(this.profiles()[this.pickIndex]?.color ?? null);
     this.deps.hintsChanged();
   }
 
@@ -313,6 +319,7 @@ export class ProfileScreen {
     const d = this.draft;
     if (!d || !this.dom.avatar) return;
     const row = this.rows[this.rowIndex];
+    this.deps.previewTheme(d.color);
     this.dom.avatar.style.background = gradient(d.color);
     this.dom.avatar.innerHTML = profileIcons[d.icon];
     this.dom.previewName.textContent = d.name || 'Seu nome';
@@ -422,7 +429,7 @@ export class ProfileScreen {
       if (d.id) {
         this.deps.sounds.select();
         this.deps.toast('Perfil salvo');
-        this.openPicker();
+        this.openPicker(d.id, true);
       } else {
         // Perfil novo: já entra jogando com ele.
         this.deps.sounds.launch();
@@ -500,7 +507,7 @@ export class ProfileScreen {
       if (input.justPressed('back')) {
         if (this.profiles().length === 0) return; // o primeiro perfil é obrigatório
         this.deps.sounds.back();
-        return this.openPicker();
+        return this.openPicker(this.draft?.id, true);
       }
       for (const [action, dy] of [['up', -1], ['down', 1]] as const) {
         if (!input.repeatPressed(action)) continue;

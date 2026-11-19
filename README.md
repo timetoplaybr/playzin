@@ -226,6 +226,10 @@ por perfil; Wi-Fi, controles pareados e a lista de jogos da tela inicial valem p
 - **Quem já usava o console antes dos perfis:** os saves existentes passam para o primeiro perfil
   criado. Os perfis seguintes começam do zero em todos os jogos.
 
+**Tema:** a cor de destaque do menu (foco, barras, botões, teclado virtual) é a cor do perfil
+ativo. Em *Quem vai jogar?* o menu já mostra a cor de quem está em foco, e no editor dá para ver a
+cor nova antes de salvar.
+
 **Tempo de jogo:** o console conta quanto cada perfil jogou de cada jogo. Aparece ao lado do nome
 do jogo na tela inicial, em *Dados salvos*, em *Configurações* (total) e em *Quem vai jogar?*.
 A tela **Atividade** lista os jogos do perfil do mais jogado para o menos jogado, com tempo,

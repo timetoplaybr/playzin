@@ -7,6 +7,7 @@ import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
+import { applyTheme, restoreTheme, setProfileTheme } from './theme';
 import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
@@ -205,6 +206,7 @@ export class HomeUI {
         this.sounds.back();
         this.profileScreen.close();
       },
+      previewTheme: (color) => this.previewTheme(color),
       hintsChanged: () => {
         this.root.classList.toggle('pf-open', this.profileScreen.isOpen);
         this.renderHints();
@@ -303,6 +305,14 @@ export class HomeUI {
     if (changed) this.showToast(`Olá, ${profile.name}!`);
   }
 
+  /** Mostra o tema de uma cor (prévia), ou volta ao do perfil ativo (null). */
+  private previewTheme(color: import('@playzin/shared').ProfileColor | null): void {
+    if (color) return applyTheme(color);
+    const profile = this.store.profile();
+    if (profile) setProfileTheme(profile.color);
+    else restoreTheme();
+  }
+
   /** Busca o tempo de jogo do perfil ativo (e o total de cada perfil, para "Quem vai jogar?"). */
   async refreshPlaytime(): Promise<void> {
     const profile = this.store.profile();
@@ -373,6 +383,8 @@ export class HomeUI {
     this.renderStatus();
     if (state.profiles !== prev.profiles || state.profileId !== prev.profileId) {
       this.renderProfile();
+      // Tema do menu = cor do perfil ativo (a tela de perfis mostra prévias enquanto está aberta).
+      if (!this.profileScreen.isOpen) this.previewTheme(null);
       if (state.profileId !== prev.profileId) void this.refreshPlaytime();
       // Trocou de perfil com "Dados salvos" aberto: recarrega a lista do novo perfil.
       if (this.panel === 'saves' && state.profileId !== prev.profileId) void this.loadSaves();
