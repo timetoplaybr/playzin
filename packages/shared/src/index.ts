@@ -88,9 +88,44 @@ export interface WifiState {
   networks: WifiNetwork[];
 }
 
+// ---- Perfis: até 4 pessoas por console, cada uma com seus saves ----
+
+export const MAX_PROFILES = 4;
+export const PROFILE_NAME_MAX = 16;
+
+/** Ícones de perfil (desenhos próprios do Playzin, em ui/icons.ts do launcher). */
+export const PROFILE_ICONS = [
+  'star', 'heart', 'bolt', 'moon', 'sun', 'leaf', 'music', 'rocket', 'crown', 'cat', 'paw', 'flower',
+] as const;
+export type ProfileIcon = (typeof PROFILE_ICONS)[number];
+
+/** Cores de perfil (o launcher traduz cada nome para um gradiente). */
+export const PROFILE_COLORS = ['coral', 'ocean', 'forest', 'grape', 'sunny', 'mint', 'rose', 'slate'] as const;
+export type ProfileColor = (typeof PROFILE_COLORS)[number];
+
+export interface Profile {
+  /** Identificador interno (ex.: "p1a2b3c4d"): nome da pasta dos saves deste perfil. */
+  id: string;
+  name: string;
+  icon: ProfileIcon;
+  color: ProfileColor;
+  createdAt: string;
+}
+
+export const PROFILE_ID_PATTERN = /^p[0-9a-f]{8}$/;
+
+/** Nome de perfil limpo (espaços repetidos viram um), ou null se for inválido. */
+export function cleanProfileName(raw: unknown): string | null {
+  if (typeof raw !== 'string') return null;
+  const name = raw.replace(/\s+/g, ' ').trim();
+  if (name.length < 1 || [...name].length > PROFILE_NAME_MAX) return null;
+  return name;
+}
+
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
+  | { type: 'profiles'; profiles: Profile[] }
   | { type: 'bluetooth'; state: BluetoothState }
   | { type: 'bluetooth-paired'; device: BluetoothDevice; auto: boolean }
   | { type: 'bluetooth-error'; message: string; address?: string }

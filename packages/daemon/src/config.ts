@@ -23,6 +23,8 @@ export interface DaemonConfig {
   pollIntervalMs: number;
   /** Onde ficam os saves dos jogos (um JSON por jogo). */
   savesDir: string;
+  /** Lista de perfis do console (padrão: profiles.json ao lado da pasta de saves). */
+  profilesFile: string;
   /** auto = BlueZ se houver; mock = Bluetooth simulado (para testar a tela no PC). */
   bluetooth: BluetoothMode;
   /** Pareamento automático ao ligar sem controle conhecido (undefined = padrão do backend). */
@@ -73,6 +75,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error(`PLAYZIN_PORT inválida: "${env.PLAYZIN_PORT}"`);
   }
+  // No Pi o systemd define /var/lib/playzin/saves; no computador fica dentro do projeto.
+  const savesDir = path.resolve(env.PLAYZIN_SAVES_DIR ?? path.join(REPO_ROOT, '.playzin-data', 'saves'));
   return {
     // Só localhost: o console não deve expor jogos nem a API para a rede.
     host: env.PLAYZIN_HOST ?? '127.0.0.1',
@@ -82,8 +86,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     slotDirs: parseList(env.PLAYZIN_SLOT_DIRS) ?? defaultSlotDirs(),
     driveRoots: parseList(env.PLAYZIN_DRIVE_ROOTS) ?? defaultDriveRoots(),
     pollIntervalMs: Number(env.PLAYZIN_POLL_MS ?? 1000),
-    // No Pi o systemd define /var/lib/playzin/saves; no computador fica dentro do projeto.
-    savesDir: path.resolve(env.PLAYZIN_SAVES_DIR ?? path.join(REPO_ROOT, '.playzin-data', 'saves')),
+    savesDir,
+    profilesFile: path.resolve(env.PLAYZIN_PROFILES_FILE ?? path.join(path.dirname(savesDir), 'profiles.json')),
     bluetooth: parseBluetooth(arg(argv, 'bluetooth') ?? env.PLAYZIN_BLUETOOTH ?? 'auto'),
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
     wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),

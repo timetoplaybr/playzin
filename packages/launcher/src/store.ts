@@ -1,4 +1,4 @@
-import type { BluetoothState, CartridgeInfo, WifiState } from '@playzin/shared';
+import type { BluetoothState, CartridgeInfo, Profile, WifiState } from '@playzin/shared';
 
 export type ConsoleStatus = 'connecting' | 'empty' | 'ready' | 'playing';
 
@@ -11,13 +11,17 @@ export interface ConsoleState {
   bluetooth: BluetoothState | null;
   /** Estado do Wi-Fi do console (null até o daemon responder). */
   wifi: WifiState | null;
+  /** Perfis do console (null até o daemon responder). */
+  profiles: Profile[] | null;
+  /** Quem está jogando agora (null = ninguém escolheu ainda). */
+  profileId: string | null;
 }
 
 type Listener = (state: ConsoleState, previous: ConsoleState) => void;
 
 /** Estado único do console. Cenas e o frame do jogo só reagem a ele. */
 export class ConsoleStore {
-  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null, bluetooth: null, wifi: null };
+  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null, bluetooth: null, wifi: null, profiles: null, profileId: null };
   private listeners = new Set<Listener>();
 
   get(): ConsoleState {
@@ -32,6 +36,12 @@ export class ConsoleStore {
 
   notify(text: string, kind: 'info' | 'error' = 'info'): void {
     this.update({ notice: { text, kind, at: Date.now() } });
+  }
+
+  /** Perfil ativo, se houver. */
+  profile(): Profile | null {
+    const { profiles, profileId } = this.state;
+    return profiles?.find((p) => p.id === profileId) ?? null;
   }
 
   subscribe(listener: Listener): () => void {

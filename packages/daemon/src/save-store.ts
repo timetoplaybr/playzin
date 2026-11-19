@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { SaveSummary } from '@playzin/shared';
+import { PROFILE_ID_PATTERN, type SaveSummary } from '@playzin/shared';
 
 export type { SaveSummary };
 
@@ -20,7 +20,9 @@ const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
 export const MAX_SAVE_BYTES = 5 * 1024 * 1024; // o mesmo limite do localStorage do navegador
 
 /**
- * Saves dos jogos, guardados pelo console: um arquivo JSON por jogo.
+ * Saves dos jogos, guardados pelo console: uma pasta por perfil e um arquivo JSON por jogo
+ * (saves/<perfil>/<jogo>.json). O pool de dados antigos do navegador (_legacy.json) é do
+ * console, na raiz da pasta: só o primeiro perfil criado herda dele.
  *
  * - Gravação atômica (arquivo temporário + fsync + rename): se a energia cair no meio,
  *   fica a versão anterior inteira, nunca um arquivo pela metade.
@@ -37,14 +39,15 @@ export class SaveStore {
     await fs.mkdir(this.dir, { recursive: true });
   }
 
-  /** Dados salvos do jogo, ou null se o console nunca guardou nada dele. */
-  async read(id: string): Promise<SaveData | null> {
-    const file = await this.readFile(id);
+  /** Dados salvos do jogo neste perfil, ou null se o console nunca guardou nada dele. */
+  async read(profile: string, id: string): Promise<SaveData | null> {
+    const file = await this.readFile(profile, id);
     return file ? file.data : null;
   }
 
-  async write(id: string, meta: { name: string; gameVersion: string }, data: SaveData): Promise<void> {
+  async write(profile: string, id: string, meta: { name: string; gameVersion: string }, data: SaveData): Promise<void> {
     assertId(id);
+    assertProfile(profile);
     const body: SaveFile = {
       format: 1,
       gameId: id,
@@ -55,8 +58,11 @@ export class SaveStore {
     };
     const json = JSON.stringify(body);
     if (Buffer.byteLength(json) > MAX_SAVE_BYTES) throw new Error('save maior que o limite de 5 MB');
-    // Gravações do mesmo jogo em fila: nunca duas ao mesmo tempo no mesmo arquivo.
-    await this.serialize(id, () => this.atomicWrite(id, json));
+    // Gravações do mesmo arquivo em fila: nunca duas ao mesmo tempo.
+    await this.serialize(`${profile}/${id}`, async () => {
+      await fs.mkdir(this.profileDir(profile), { recursive: true });
+      await this.atomicWrite(this.fileFor(profile, id), json);
+    });
   }
 
   /**
@@ -85,19 +91,52 @@ export class SaveStore {
     });
   }
 
-  /** Apaga o progresso de um jogo (ele volta a começar do zero). */
-  async clear(id: string): Promise<boolean> {
-    const file = await this.readFile(id);
+  /** Apaga o progresso de um jogo neste perfil (ele volta a começar do zero). */
+  async clear(profile: string, id: string): Promise<boolean> {
+    const file = await this.readFile(profile, id);
     if (!file || Object.keys(file.data).length === 0) return false;
-    await this.write(id, { name: file.name, gameVersion: file.gameVersion }, {});
+    await this.write(profile, id, { name: file.name, gameVersion: file.gameVersion }, {});
     return true;
   }
 
-  /** Jogos com progresso salvo, mais recentes primeiro. */
-  async list(): Promise<SaveSummary[]> {
+  /** Apaga todos os saves de um perfil (quando o perfil é excluído). */
+  async deleteProfile(profile: string): Promise<void> {
+    assertProfile(profile);
+    await fs.rm(this.profileDir(profile), { recursive: true, force: true });
+  }
+
+  /**
+   * Saves de antes dos perfis (soltos na raiz da pasta) passam para o perfil indicado.
+   * Chamado uma única vez, quando o primeiro perfil do console é criado.
+   */
+  async adoptUnowned(profile: string): Promise<number> {
+    assertProfile(profile);
     let names: string[];
     try {
       names = await fs.readdir(this.dir);
+    } catch {
+      return 0;
+    }
+    const target = this.profileDir(profile);
+    await fs.mkdir(target, { recursive: true });
+    let moved = 0;
+    for (const name of names) {
+      const id = name.replace(/\.json(\.bak)?$/, '');
+      if (id === name || !ID_PATTERN.test(id)) continue; // _legacy.json, temporários, pastas
+      const from = path.join(this.dir, name);
+      if (!(await fs.stat(from)).isFile()) continue;
+      await fs.rename(from, path.join(target, name));
+      if (name.endsWith('.json')) moved++;
+    }
+    return moved;
+  }
+
+  /** Jogos com progresso salvo neste perfil, mais recentes primeiro. */
+  async list(profile: string): Promise<SaveSummary[]> {
+    assertProfile(profile);
+    let names: string[];
+    try {
+      names = await fs.readdir(this.profileDir(profile));
     } catch {
       return [];
     }
@@ -106,7 +145,7 @@ export class SaveStore {
       if (!name.endsWith('.json')) continue;
       const id = name.slice(0, -'.json'.length);
       if (!ID_PATTERN.test(id)) continue;
-      const file = await this.readFile(id);
+      const file = await this.readFile(profile, id);
       if (!file) continue;
       const keys = Object.keys(file.data).length;
       if (keys === 0) continue;
@@ -122,9 +161,11 @@ export class SaveStore {
     return out.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   }
 
-  private async readFile(id: string): Promise<SaveFile | null> {
+  private async readFile(profile: string, id: string): Promise<SaveFile | null> {
     assertId(id);
-    for (const candidate of [this.fileFor(id), `${this.fileFor(id)}.bak`]) {
+    assertProfile(profile);
+    const main = this.fileFor(profile, id);
+    for (const candidate of [main, `${main}.bak`]) {
       try {
         const parsed = JSON.parse(await fs.readFile(candidate, 'utf8')) as SaveFile;
         if (parsed && typeof parsed.data === 'object' && parsed.data !== null) return parsed;
@@ -135,8 +176,7 @@ export class SaveStore {
     return null;
   }
 
-  private async atomicWrite(id: string, json: string): Promise<void> {
-    const file = this.fileFor(id);
+  private async atomicWrite(file: string, json: string): Promise<void> {
     const tmp = `${file}.${process.pid}.tmp`;
     const handle = await fs.open(tmp, 'w');
     try {
@@ -167,13 +207,21 @@ export class SaveStore {
     return path.join(this.dir, '_legacy.json');
   }
 
-  private fileFor(id: string): string {
-    return path.join(this.dir, `${id}.json`);
+  private profileDir(profile: string): string {
+    return path.join(this.dir, profile);
+  }
+
+  private fileFor(profile: string, id: string): string {
+    return path.join(this.profileDir(profile), `${id}.json`);
   }
 }
 
 function assertId(id: string): void {
   if (!ID_PATTERN.test(id)) throw new Error(`id de jogo inválido: ${id}`);
+}
+
+function assertProfile(profile: string): void {
+  if (!PROFILE_ID_PATTERN.test(profile)) throw new Error(`perfil inválido: ${profile}`);
 }
 
 export function isSaveData(value: unknown): value is SaveData {

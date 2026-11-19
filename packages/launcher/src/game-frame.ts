@@ -6,7 +6,8 @@ const HOLD_TO_EXIT_MS = 1000;
 /** O que o script de saves injetado pelo daemon expõe dentro do iframe do jogo. */
 interface GameSaves {
   snapshot(): Record<string, string>;
-  url: string;
+  /** null = visitante, nada é gravado */
+  url: string | null;
 }
 const READY_FALLBACK_MS = 400;
 
@@ -39,13 +40,15 @@ export class GameFrame {
     return this.current !== null;
   }
 
-  open(cartridge: CartridgeInfo): void {
+  /** Abre o jogo com os saves do perfil indicado. */
+  open(cartridge: CartridgeInfo, profileId: string | null): void {
     this.current = cartridge;
     this.loadingText.textContent = `Carregando ${cartridge.manifest.name}…`;
     this.loading.hidden = false;
 
     const url = new URL(cartridge.entryUrl, location.href);
     url.searchParams.set('playzin', '1');
+    if (profileId) url.searchParams.set('profile', profileId);
 
     this.frame.onload = () => {
       this.attachKeyboard();
@@ -82,7 +85,7 @@ export class GameFrame {
   private saveNow(): void {
     try {
       const saves = (this.frame.contentWindow as unknown as { __playzinSaves?: GameSaves } | null)?.__playzinSaves;
-      if (!saves) return;
+      if (!saves?.url) return;
       const body = JSON.stringify({ data: saves.snapshot(), at: Date.now() });
       void fetch(saves.url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body }).catch(() => undefined);
     } catch {

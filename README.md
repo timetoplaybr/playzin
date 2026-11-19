@@ -53,6 +53,8 @@ Para os seus jogos, use o comando `playzin` dentro da pasta de cada um (próxima
 
 - **Fileira de jogos:** o cartucho inserido aparece primeiro; os jogos que já passaram pelo
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
+- **Perfil:** o avatar no canto superior esquerdo mostra quem está jogando; suba até ele (ou clique)
+  para trocar de perfil. Veja [Perfis](#perfis-até-4-pessoas-por-console).
 - **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Dados salvos (progresso de cada
   jogo, com opção de apagar), Configurações (versão, status) e Tela cheia (também pela tecla **F**).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
@@ -64,7 +66,7 @@ Para os seus jogos, use o comando `playzin` dentro da pasta de cada um (próxima
 | Navegar | setas / WASD | direcional ou analógico |
 | Jogar / OK | Enter / Espaço | A |
 | Voltar / fechar painel | Backspace | B |
-| Remover jogo da lista | L | X |
+| Remover jogo da lista / editar perfil | L | X |
 | Voltar ao menu (durante o jogo) | segurar Esc por 1 s | botão Xbox, ou View + Menu por 1 s |
 
 ### Desenvolvendo o launcher com hot reload
@@ -205,21 +207,41 @@ npm run start:simulado
 - Wi-Fi: começa conectado em "Casa do Diego"; a senha das redes protegidas é `playzin123`
   (qualquer outra dá "senha incorreta"); "Cafeteria Livre" é aberta.
 
+## Perfis: até 4 pessoas por console
+
+Cada pessoa da casa tem o seu perfil, com **nome, ícone e cor**. Os jogos salvos são separados
+por perfil; Wi-Fi, controles pareados e a lista de jogos da tela inicial valem para o console todo.
+
+- **Primeira vez:** o console pede para criar um perfil antes de jogar (nome pelo teclado virtual,
+  ícone e cor com ← e →).
+- **Ao ligar:** com um perfil só, ele entra direto. Com mais de um, aparece **Quem vai jogar?**,
+  com o foco em quem jogou por último.
+- **Trocar, criar, editar ou excluir:** pelo avatar no topo da tela inicial. Em *Quem vai jogar?*:
+  A escolhe, X edita e o último cartão cria um perfil novo (enquanto houver menos de 4).
+  Excluir pede confirmação (A duas vezes) e **apaga os jogos salvos daquele perfil**.
+- **Quem já usava o console antes dos perfis:** os saves existentes passam para o primeiro perfil
+  criado. Os perfis seguintes começam do zero em todos os jogos.
+
+Os perfis ficam em `.playzin-data/profiles.json` no computador e em `/var/lib/playzin/profiles.json`
+no Pi; os saves, em uma pasta por perfil (`saves/<perfil>/<jogo>.json`). Os jogos não precisam
+saber de nada: o console entrega a cada um só o progresso do perfil que está jogando.
+
 ## Saves: o progresso fica no console
 
 Os jogos continuam usando `localStorage` (ou o `createSaveStore` do SDK) normalmente, sem
 mudar nada. Por baixo, o console:
 
-- **guarda o progresso em disco**, um arquivo por jogo: `.playzin-data/saves/<id>.json` no
-  computador, `/var/lib/playzin/saves/` no Pi. Gravação atômica, com a versão anterior em `.bak`;
+- **guarda o progresso em disco**, um arquivo por jogo em cada perfil: `.playzin-data/saves/<perfil>/<id>.json`
+  no computador, `/var/lib/playzin/saves/` no Pi. Gravação atômica, com a versão anterior em `.bak`;
 - **isola os jogos:** ao abrir um cartucho, o `localStorage` recebe só os dados daquele jogo,
   e um `localStorage.clear()` dentro do jogo apaga só os dados dele;
 - **grava enquanto você joga** (alguns décimos de segundo depois de cada mudança) e mais uma vez
   ao sair do jogo, inclusive quando o cartucho é puxado;
 - **aproveita o progresso antigo:** o que já estava no navegador antes desta versão é copiado uma
-  vez, e cada jogo leva para o save dele só as chaves que usar.
+  vez, e cada jogo leva para o save dele só as chaves que usar (só no primeiro perfil).
 
-Em **Dados salvos**, na tela inicial, dá para ver e apagar o progresso de cada jogo (X duas vezes).
+Em **Dados salvos**, na tela inicial, dá para ver e apagar o progresso de cada jogo do perfil
+ativo (X duas vezes).
 Apagar faz o jogo começar do zero na próxima vez.
 
 Só `localStorage` é coberto: dados em IndexedDB ou cookies continuam apenas no navegador.
@@ -269,6 +291,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 | `PLAYZIN_BT_AUTOPAIR` | ligado no Pi | Pareamento automático ao ligar sem controle pareado (`0` desliga). Também `--autopair` |
 | `PLAYZIN_WIFI` | `auto` | `auto` (NetworkManager se houver), `networkmanager`, `mock` (simulado) ou `none`. Também `--wifi=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
+| `PLAYZIN_PROFILES_FILE` | `profiles.json` ao lado da pasta de saves | Lista de perfis do console |
 
 ## Status
 
@@ -282,6 +305,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [ ] Testar o Bluetooth de verdade (BlueZ) no Raspberry Pi
 - [ ] Testar o Wi-Fi de verdade (NetworkManager) no Raspberry Pi
 - [x] Saves guardados pelo console, isolados por jogo, com a tela Dados salvos
+- [x] Perfis (até 4, com nome, ícone e cor), saves separados por perfil
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
 - [ ] Backup dos saves num pendrive
 - [ ] Testar a fonte UDisks2 e o kiosk no hardware real

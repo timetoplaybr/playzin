@@ -7,7 +7,8 @@ import { CARTRIDGE_URL_PREFIX, WS_PATH, type ClientMessage, type ServerMessage }
 import type { CartridgeManager } from './cartridge-manager.js';
 import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
-import { isSaveData, MAX_SAVE_BYTES, type SaveStore } from './save-store.js';
+import { isSaveData, MAX_SAVE_BYTES, type SaveData, type SaveStore } from './save-store.js';
+import { ProfileError, type ProfileStore } from './profile-store.js';
 import type { BluetoothController } from './bluetooth/controller.js';
 import type { WifiController } from './wifi/controller.js';
 import { WifiError } from './wifi/types.js';
@@ -17,6 +18,7 @@ export async function createServer(
   config: DaemonConfig,
   manager: CartridgeManager,
   saves: SaveStore,
+  profiles: ProfileStore,
   bluetooth: BluetoothController,
   wifi: WifiController,
 ): Promise<FastifyInstance> {
@@ -42,7 +44,7 @@ export async function createServer(
   }
 
   // ---- Arquivos do cartucho ativo ----
-  app.get<{ Params: { slotId: string; '*': string } }>(`${CARTRIDGE_URL_PREFIX}/:slotId/*`, async (req, reply) => {
+  app.get<{ Params: { slotId: string; '*': string }; Querystring: { profile?: string } }>(`${CARTRIDGE_URL_PREFIX}/:slotId/*`, async (req, reply) => {
     const { slotId } = req.params;
     const relative = req.params['*'] || 'index.html';
     const root = manager.activeRoot(slotId);
@@ -52,21 +54,26 @@ export async function createServer(
     // Nada de cache: o mesmo endereço pode ser outro cartucho amanhã.
     reply.header('Cache-Control', 'no-store');
 
-    // HTML de entrada: injeta o script que restaura e espelha os saves deste jogo.
+    // HTML de entrada: injeta o script que restaura e espelha os saves deste jogo, do perfil
+    // que está jogando (?profile=<id>, colocado pelo launcher).
     const manifest = manager.manifestForSlot(slotId);
     if (manifest && /\.html?$/i.test(manifest.entry) && samePath(relative, manifest.entry)) {
       const html = await fs.promises.readFile(manager.resolveFile(slotId, relative)!, 'utf8');
-      let initial = await saves.read(manifest.id).catch(() => null);
+      const profile = profiles.get(req.query.profile);
+      let initial: SaveData | null = {};
       let mode: SaveMode = 'own';
-      if (initial === null) {
-        const legacy = await saves.readLegacy();
-        if (legacy === undefined) mode = 'first';
-        else {
-          mode = 'legacy';
-          initial = legacy;
+      if (profile) {
+        initial = await saves.read(profile.id, manifest.id).catch(() => null);
+        if (initial === null) {
+          // Primeira vez deste jogo neste perfil. Só o primeiro perfil do console herda o que
+          // estava no navegador antes; os outros começam do zero.
+          const owner = profiles.ownsLegacy(profile.id);
+          const legacy = await saves.readLegacy();
+          mode = legacy === undefined ? 'first' : 'legacy';
+          initial = owner ? (legacy ?? null) : {};
         }
       }
-      const script = buildSaveShim({ slotId, gameId: manifest.id, initial, mode });
+      const script = buildSaveShim({ slotId, gameId: manifest.id, profileId: profile?.id ?? null, initial, mode });
       return reply.type('text/html; charset=utf-8').send(injectIntoHtml(html, script));
     }
     return reply.sendFile(relative, root, { cacheControl: false });
@@ -76,19 +83,22 @@ export async function createServer(
   // Endereço por slot: um jogo só consegue gravar os próprios dados.
   // O jogo e o launcher podem gravar quase ao mesmo tempo ao fechar: vale a mais recente.
   const lastWriteAt = new Map<string, number>();
-  app.put<{ Params: { slotId: string }; Body: { data?: unknown; at?: unknown } }>(
-    `${CARTRIDGE_URL_PREFIX}/:slotId/__playzin/save`,
+  app.put<{ Params: { slotId: string; profileId: string }; Body: { data?: unknown; at?: unknown } }>(
+    `${CARTRIDGE_URL_PREFIX}/:slotId/__playzin/save/:profileId`,
     { bodyLimit: MAX_SAVE_BYTES + 1024 },
     async (req, reply) => {
       const manifest = manager.manifestForSlot(req.params.slotId);
       if (!manifest) return reply.code(404).send({ error: 'slot desconhecido' });
+      const profile = profiles.get(req.params.profileId);
+      if (!profile) return reply.code(404).send({ error: 'perfil desconhecido' });
       const data = req.body?.data;
       if (!isSaveData(data)) return reply.code(400).send({ error: 'data precisa ser um objeto de textos' });
+      const key = `${profile.id}/${manifest.id}`;
       const at = typeof req.body?.at === 'number' ? req.body.at : Date.now();
-      if (at < (lastWriteAt.get(manifest.id) ?? 0)) return reply.code(204).send(); // chegou atrasada
-      lastWriteAt.set(manifest.id, at);
+      if (at < (lastWriteAt.get(key) ?? 0)) return reply.code(204).send(); // chegou atrasada
+      lastWriteAt.set(key, at);
       try {
-        await saves.write(manifest.id, { name: manifest.name, gameVersion: manifest.version }, data);
+        await saves.write(profile.id, manifest.id, { name: manifest.name, gameVersion: manifest.version }, data);
       } catch (err) {
         req.log.warn(`save de ${manifest.id} recusado: ${(err as Error).message}`);
         return reply.code(413).send({ error: (err as Error).message });
@@ -190,11 +200,52 @@ export async function createServer(
     }
   });
 
-  app.get('/api/saves', async () => ({ saves: await saves.list() }));
-  app.delete<{ Params: { id: string } }>('/api/saves/:id', async (req, reply) => {
+  // ---- Perfis ----
+  const profileFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    err instanceof ProfileError
+      ? reply.code(err.status).send({ error: err.message })
+      : reply.code(500).send({ error: (err as Error).message });
+
+  app.get('/api/profiles', async () => ({ profiles: profiles.list() }));
+  app.post<{ Body: { name?: unknown; icon?: unknown; color?: unknown } }>('/api/profiles', async (req, reply) => {
     try {
-      const cleared = await saves.clear(req.params.id);
-      lastWriteAt.set(req.params.id, Date.now());
+      return reply.code(201).send(await profiles.create(req.body ?? {}));
+    } catch (err) {
+      return profileFail(reply, err);
+    }
+  });
+  app.patch<{ Params: { id: string }; Body: { name?: unknown; icon?: unknown; color?: unknown } }>(
+    '/api/profiles/:id',
+    async (req, reply) => {
+      try {
+        return await profiles.update(req.params.id, req.body ?? {});
+      } catch (err) {
+        return profileFail(reply, err);
+      }
+    },
+  );
+  app.delete<{ Params: { id: string } }>('/api/profiles/:id', async (req, reply) => {
+    try {
+      await profiles.remove(req.params.id);
+      for (const key of lastWriteAt.keys()) if (key.startsWith(`${req.params.id}/`)) lastWriteAt.delete(key);
+      return reply.code(204).send();
+    } catch (err) {
+      return profileFail(reply, err);
+    }
+  });
+
+  // ---- Saves de um perfil: tela "Dados salvos" ----
+  app.get<{ Querystring: { profile?: string } }>('/api/saves', async (req, reply) => {
+    const profile = profiles.get(req.query.profile);
+    if (!profile) return reply.code(404).send({ error: 'perfil desconhecido' });
+    return { saves: await saves.list(profile.id) };
+  });
+  app.delete<{ Params: { profile: string; id: string } }>('/api/saves/:profile/:id', async (req, reply) => {
+    const profile = profiles.get(req.params.profile);
+    if (!profile) return reply.code(404).send({ error: 'perfil desconhecido' });
+    try {
+      const cleared = await saves.clear(profile.id, req.params.id);
+      lastWriteAt.set(`${profile.id}/${req.params.id}`, Date.now());
       return cleared ? reply.code(204).send() : reply.code(404).send({ error: 'nenhum progresso salvo' });
     } catch (err) {
       return reply.code(400).send({ error: (err as Error).message });
@@ -208,6 +259,7 @@ export async function createServer(
   // ---- WebSocket: avisa o launcher em tempo real ----
   app.get(WS_PATH, { websocket: true }, (socket) => {
     send(socket, { type: 'state', cartridge: manager.current });
+    send(socket, { type: 'profiles', profiles: profiles.list() });
     send(socket, { type: 'bluetooth', state: bluetooth.state() });
     send(socket, { type: 'wifi', state: wifi.state() });
     socket.on('message', (data) => {
@@ -227,6 +279,7 @@ export async function createServer(
   manager.on('inserted', (cartridge) => broadcast({ type: 'cartridge-inserted', cartridge }));
   manager.on('removed', (slotId) => broadcast({ type: 'cartridge-removed', slotId }));
   manager.on('error', (message, source) => broadcast({ type: 'cartridge-error', message, source }));
+  profiles.on('change', (list) => broadcast({ type: 'profiles', profiles: list }));
   bluetooth.on('state', (state) => broadcast({ type: 'bluetooth', state }));
   bluetooth.on('paired', (device, auto) => broadcast({ type: 'bluetooth-paired', device, auto }));
   bluetooth.on('error', (message, address) => broadcast({ type: 'bluetooth-error', message, address }));

@@ -1,9 +1,10 @@
 import { getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
-import type { BluetoothDevice, CartridgeInfo, SaveSummary } from '@playzin/shared';
+import type { BluetoothDevice, CartridgeInfo, Profile, SaveSummary } from '@playzin/shared';
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
 import { ControllersPanel } from './controllers-panel';
 import { VirtualKeyboard } from './keyboard';
+import { avatarHtml, ProfileScreen } from './profiles';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
@@ -17,7 +18,9 @@ const SHELF_PADDING = 64;
 const VISIBLE_TILES = 4; // quantos cabem inteiros antes de rolar
 const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
-const VERSION = '0.2.0';
+const VERSION = '0.3.0';
+/** Último perfil escolhido (fica no navegador do console, junto com as outras chaves do launcher). */
+const LAST_PROFILE_KEY = 'playzin:launcher:last-profile';
 
 type Tile =
   | { kind: 'cartridge'; key: string; cartridge: CartridgeInfo; entry?: LibraryEntry }
@@ -74,7 +77,7 @@ export interface HomeActions {
 export class HomeUI {
   private readonly input = new PlayerInput({ player: 0 });
   private tiles: Tile[] = [];
-  private row: 'tiles' | 'system' = 'tiles';
+  private row: 'profile' | 'tiles' | 'system' = 'tiles';
   private tileIndex = 0;
   private systemIndex = 0;
   private focusKey: string | null = null;
@@ -82,6 +85,7 @@ export class HomeUI {
   private readonly ctrlPanel: ControllersPanel;
   private readonly wifiPanel: WifiPanel;
   private readonly keyboard: VirtualKeyboard;
+  private readonly profileScreen: ProfileScreen;
   private sysButtons: SystemButton[] = [];
   private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
@@ -99,6 +103,7 @@ export class HomeUI {
   // elementos
   private readonly el: {
     tiles: HTMLDivElement;
+    profile: HTMLButtonElement;
     system: HTMLElement;
     clock: HTMLSpanElement;
     net: HTMLSpanElement;
@@ -119,7 +124,7 @@ export class HomeUI {
   ) {
     root.innerHTML = `
       <header class="topbar">
-        <div class="profile"><div class="avatar">${icons.user}</div></div>
+        <button class="profile" title="Trocar de perfil"><div class="avatar">${icons.user}</div><span class="profile-name"></span></button>
         <div class="status">
           <span class="pads" title="Controles conectados"></span>
           <span class="net" title="Sistema"></span>
@@ -138,6 +143,7 @@ export class HomeUI {
     const q = <T extends Element>(s: string) => root.querySelector(s) as T;
     this.el = {
       tiles: q('.tiles'),
+      profile: q('.profile'),
       system: q('.system-row'),
       clock: q('.clock'),
       net: q('.net'),
@@ -170,13 +176,34 @@ export class HomeUI {
       },
       isOpen: () => this.panel === 'wifi',
     });
+    this.profileScreen = new ProfileScreen(root, {
+      store,
+      sounds,
+      keyboard: this.keyboard,
+      toast: (text, kind) => this.showToast(text, kind),
+      choose: (profile) => this.chooseProfile(profile),
+      close: () => {
+        this.sounds.back();
+        this.profileScreen.close();
+      },
+      hintsChanged: () => {
+        this.root.classList.toggle('pf-open', this.profileScreen.isOpen);
+        this.renderHints();
+      },
+    });
+    this.el.profile.addEventListener('click', () => {
+      if (this.panel) this.closePanel();
+      this.row = 'profile';
+      this.applyFocus();
+      this.openProfiles();
+    });
     this.buildSystemRow();
     // A linha de sistema muda quando entra/sai da tela cheia (ícone e texto do botão).
     document.addEventListener('fullscreenchange', () => this.buildSystemRow());
     window.addEventListener('resize', () => this.buildSystemRow());
     // Atalho de teclado: F alterna a tela cheia (no menu).
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyF' && !e.repeat && this.active && !this.panel) void this.toggleFullscreen();
+      if (e.code === 'KeyF' && !e.repeat && this.active && !this.panel && !this.keyboard.isOpen) void this.toggleFullscreen();
     });
     this.el.backdrop.addEventListener('click', (e) => {
       if (e.target === this.el.backdrop) this.closePanel();
@@ -222,6 +249,50 @@ export class HomeUI {
     this.ctrlPanel.onPaired(device, auto);
   }
 
+  // ---------------------------------------------------------------- perfis
+
+  /** Lista de perfis do daemon (ao conectar e sempre que muda). */
+  onProfiles(profiles: Profile[]): void {
+    const state = this.store.get();
+    const booting = state.profiles === null;
+    let profileId = state.profileId;
+    if (profileId && !profiles.some((p) => p.id === profileId)) profileId = null;
+    // Ao ligar com um perfil só, ele entra direto. Com mais de um, o console pergunta quem vai jogar.
+    if (!profileId && booting && profiles.length === 1) profileId = profiles[0].id;
+    this.store.update({ profiles, profileId });
+    if (profileId) rememberProfile(profileId);
+    this.profileScreen.refresh();
+    if (!profileId && !this.profileScreen.isOpen && state.status !== 'playing') this.openProfiles();
+  }
+
+  /** Abre "Quem vai jogar?" (ou a criação do primeiro perfil). */
+  openProfiles(): void {
+    if (this.store.get().profiles === null) return; // ainda não sabemos quais perfis existem
+    if (this.panel) this.closePanel();
+    this.held = null;
+    this.profileScreen.openPicker(lastProfile());
+  }
+
+  private chooseProfile(profile: Profile): void {
+    const changed = this.store.get().profileId !== profile.id;
+    this.store.update({ profileId: profile.id });
+    rememberProfile(profile.id);
+    this.profileScreen.close();
+    this.row = 'tiles';
+    this.applyFocus();
+    if (changed) this.showToast(`Olá, ${profile.name}!`);
+  }
+
+  private renderProfile(): void {
+    const profile = this.store.profile();
+    const signature = profile ? `${profile.id}:${profile.name}:${profile.icon}:${profile.color}` : '';
+    if (this.el.profile.dataset.sig === signature) return;
+    this.el.profile.dataset.sig = signature;
+    this.el.profile.innerHTML = profile
+      ? `${avatarHtml(profile, 'avatar')}<span class="profile-name">${escapeHtml(profile.name)}</span>`
+      : `<div class="avatar">${icons.user}</div><span class="profile-name"></span>`;
+  }
+
   showError(text: string): void {
     this.sounds.error();
     this.showToast(text, 'error');
@@ -251,6 +322,12 @@ export class HomeUI {
 
     this.renderTiles(justInserted);
     this.renderStatus();
+    if (state.profiles !== prev.profiles || state.profileId !== prev.profileId) {
+      this.renderProfile();
+      // Trocou de perfil com "Dados salvos" aberto: recarrega a lista do novo perfil.
+      if (this.panel === 'saves' && state.profileId !== prev.profileId) void this.loadSaves();
+      if (this.panel === 'settings') this.renderPanel();
+    }
     if (state.bluetooth !== prev.bluetooth && this.panel === 'controllers') this.renderPanel();
     if (state.wifi !== prev.wifi && this.panel === 'wifi') this.renderPanel();
 
@@ -389,6 +466,7 @@ export class HomeUI {
     for (let i = 0; i < tileNodes.length; i++) {
       tileNodes[i].classList.toggle('focused', this.row === 'tiles' && i === this.tileIndex);
     }
+    this.el.profile.classList.toggle('focused', this.row === 'profile');
     const sysNodes = this.el.system.children;
     for (let i = 0; i < sysNodes.length; i++) {
       sysNodes[i].classList.toggle('focused', this.row === 'system' && i === this.systemIndex);
@@ -404,7 +482,13 @@ export class HomeUI {
   }
 
   private move(dx: number, dy: number): void {
-    if (dy > 0 && this.row === 'tiles') {
+    if (dy < 0 && this.row === 'tiles') {
+      this.row = 'profile';
+      this.sounds.move();
+    } else if (dy > 0 && this.row === 'profile') {
+      this.row = 'tiles';
+      this.sounds.move();
+    } else if (dy > 0 && this.row === 'tiles') {
       this.row = 'system';
       this.sounds.move();
     } else if (dy < 0 && this.row === 'system') {
@@ -430,6 +514,10 @@ export class HomeUI {
   // ---------------------------------------------------------------- ações
 
   private activate(): void {
+    if (this.row === 'profile') {
+      this.sounds.select();
+      return this.openProfiles();
+    }
     if (this.row === 'system') return this.activateSystem(this.sysButtons[this.systemIndex].id);
 
     const tile = this.tiles[this.tileIndex];
@@ -540,8 +628,11 @@ export class HomeUI {
   }
 
   private async loadSaves(): Promise<void> {
+    const profile = this.store.profile();
     try {
-      const res = await fetch('/api/saves', { cache: 'no-store' });
+      if (!profile) throw new Error('sem perfil');
+      const res = await fetch(`/api/saves?profile=${encodeURIComponent(profile.id)}`, { cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
       const body = (await res.json()) as { saves: SaveSummary[] };
       this.saves = body.saves;
     } catch {
@@ -555,7 +646,8 @@ export class HomeUI {
   /** X no painel: o primeiro aperto pede confirmação, o segundo apaga. */
   private async deleteSelectedSave(): Promise<void> {
     const save = this.saves?.[this.saveIndex];
-    if (!save) return;
+    const profile = this.store.profile();
+    if (!save || !profile) return;
     if (this.confirmDelete !== save.id) {
       this.confirmDelete = save.id;
       this.sounds.error();
@@ -564,7 +656,9 @@ export class HomeUI {
     }
     this.confirmDelete = null;
     try {
-      const res = await fetch(`/api/saves/${encodeURIComponent(save.id)}`, { method: 'DELETE' });
+      const res = await fetch(`/api/saves/${encodeURIComponent(profile.id)}/${encodeURIComponent(save.id)}`, {
+        method: 'DELETE',
+      });
       if (!res.ok && res.status !== 404) throw new Error(String(res.status));
       this.sounds.back();
       this.showToast(`Progresso de “${save.name}” apagado`);
@@ -581,7 +675,7 @@ export class HomeUI {
       if (this.saves === null) {
         body = `<p class="muted">Carregando…</p>`;
       } else if (this.saves.length === 0) {
-        body = `<p class="muted">Nenhum jogo tem progresso salvo ainda.</p>`;
+        body = `<p class="muted">Nenhum jogo tem progresso salvo neste perfil ainda.</p>`;
       } else {
         body = `<ul class="save-list">${this.saves
           .map((s, i) => {
@@ -595,10 +689,11 @@ export class HomeUI {
           })
           .join('')}</ul>`;
       }
+      const owner = this.store.profile();
       this.el.panel.innerHTML = `
-        <h2>${icons.save} Dados salvos</h2>
+        <h2>${icons.save} Dados salvos${owner ? ` de ${escapeHtml(owner.name)}` : ''}</h2>
         ${body}
-        <p class="muted">O progresso fica guardado no console, não no cartucho. Apagar não tem volta.</p>`;
+        <p class="muted">O progresso fica guardado no console, não no cartucho, e é separado por perfil. Apagar não tem volta.</p>`;
       this.el.panel.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
       this.el.panel.querySelectorAll<HTMLElement>('.save-list li').forEach((li) =>
         li.addEventListener('click', (e) => {
@@ -626,6 +721,7 @@ export class HomeUI {
         <h2>${icons.settings} Configurações</h2>
         <dl class="info">
           <dt>Versão</dt><dd>Playzin ${VERSION}</dd>
+          <dt>Perfil</dt><dd>${escapeHtml(this.store.profile()?.name ?? 'Nenhum')} · ${this.store.get().profiles?.length ?? 0} de 4 no console</dd>
           <dt>Sistema</dt><dd>${this.connected ? 'Conectado' : 'Desconectado'}</dd>
           <dt>Rede</dt><dd>${networkLabel(this.store.get().wifi)}</dd>
           <dt>Cartucho</dt><dd>${cartridge ? `${escapeHtml(cartridge.manifest.name)} v${escapeHtml(cartridge.manifest.version)}` : 'Nenhum'}</dd>
@@ -664,7 +760,9 @@ export class HomeUI {
   private renderHints(): void {
     const hint = (glyph: string, label: string) => `<span class="hint"><span class="glyph">${glyph}</span>${label}</span>`;
     let html = '';
-    if (this.panel === 'controllers') {
+    if (this.profileScreen?.isOpen) {
+      html = this.profileScreen.hints(hint);
+    } else if (this.panel === 'controllers') {
       html = this.ctrlPanel.hints(hint);
     } else if (this.panel === 'wifi') {
       html = this.wifiPanel.hints(hint);
@@ -672,6 +770,8 @@ export class HomeUI {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel) {
       html = hint('B', 'Voltar');
+    } else if (this.row === 'profile') {
+      html = hint('A', 'Trocar de perfil');
     } else if (this.row === 'system') {
       html = hint('A', 'OK');
     } else {
@@ -710,6 +810,13 @@ export class HomeUI {
     if (++this.frame % 30 === 0) this.updatePads();
     // Teclado virtual aberto: ele recebe todo o input até fechar.
     if (this.keyboard.isOpen) return this.keyboard.update();
+    if (this.profileScreen.isOpen) {
+      this.profileScreen.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      return;
+    }
 
     if (this.panel === 'wifi') {
       const result = this.wifiPanel.handleInput({
@@ -827,6 +934,22 @@ function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
 }
 
+
+function lastProfile(): string | null {
+  try {
+    return localStorage.getItem(LAST_PROFILE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function rememberProfile(id: string): void {
+  try {
+    localStorage.setItem(LAST_PROFILE_KEY, id);
+  } catch {
+    /* sem localStorage: o console só não lembra quem jogou por último */
+  }
+}
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

@@ -33,9 +33,11 @@ const frame = new GameFrame(() => {
 function play(cartridge: CartridgeInfo): void {
   if (frame.isOpen) return;
   library.markPlayed(cartridge.manifest.id);
+  const profile = store.profile();
+  if (!profile) return home.openProfiles();
   store.update({ status: 'playing' });
   home.setActive(false);
-  frame.open(cartridge);
+  frame.open(cartridge, profile.id);
 }
 
 function stopPlaying(): void {
@@ -86,6 +88,9 @@ connection.onMessage((msg) => {
       if (status === 'playing') stopPlaying();
       store.update({ status: 'empty', cartridge: null });
       store.notify('Cartucho removido');
+      break;
+    case 'profiles':
+      home.onProfiles(msg.profiles);
       break;
     case 'bluetooth':
       store.update({ bluetooth: msg.state });

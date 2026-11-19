@@ -5,6 +5,7 @@ import { BluezBackend } from './bluetooth/bluez.js';
 import { BluetoothController } from './bluetooth/controller.js';
 import { MockBackend } from './bluetooth/mock.js';
 import type { BluetoothBackend } from './bluetooth/types.js';
+import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
 import { WifiController } from './wifi/controller.js';
 import { MockWifiBackend } from './wifi/mock.js';
@@ -23,6 +24,8 @@ async function main(): Promise<void> {
   });
   const saves = new SaveStore(config.savesDir);
   await saves.init();
+  const profiles = new ProfileStore(config.profilesFile, saves);
+  await profiles.init();
 
   let backend: BluetoothBackend | null = null;
   if (config.bluetooth === 'mock') backend = new MockBackend();
@@ -44,7 +47,7 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, bluetooth, wifi);
+  const app = await createServer(config, manager, saves, profiles, bluetooth, wifi);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -80,6 +83,7 @@ async function main(): Promise<void> {
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
+  app.log.info(`perfis: ${profiles.list().map((p) => p.name).join(', ') || 'nenhum ainda'}`);
   app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
   app.log.info(`wi-fi: ${wifiBackend ? (wifiBackend.name === 'mock' ? 'simulado' : 'NetworkManager') : 'indisponível'}`);
   if (config.sourceMode !== 'udisks') {

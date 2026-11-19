@@ -19,6 +19,10 @@ export const LAUNCHER_PREFIX = 'playzin:launcher:';
  * Migração (progresso de antes desta versão, que ficava só no navegador): na primeira vez,
  * o console guarda uma cópia de tudo ("legado"). Na primeira vez de cada jogo, ele recebe o
  * legado inteiro, mas só as chaves que o jogo de fato ler ou gravar entram no save dele.
+ *
+ * Perfis: cada perfil tem seu próprio save de cada jogo. Só o primeiro perfil criado herda o
+ * legado; os outros começam do zero. Sem perfil válido (visitante), o jogo começa do zero e
+ * nada é gravado.
  */
 export type SaveMode =
   /** o console já tem o save deste jogo */
@@ -28,10 +32,19 @@ export type SaveMode =
   /** primeira vez de qualquer jogo neste console: captura os dados antigos do navegador */
   | 'first';
 
-export function buildSaveShim(opts: { slotId: string; gameId: string; initial: SaveData | null; mode: SaveMode }): string {
+export function buildSaveShim(opts: {
+  slotId: string;
+  gameId: string;
+  /** null = visitante: começa do zero e não grava nada */
+  profileId: string | null;
+  /** null = usa o que já está no navegador; um objeto (mesmo vazio) substitui tudo */
+  initial: SaveData | null;
+  mode: SaveMode;
+}): string {
   const base = `/cart/${encodeURIComponent(opts.slotId)}/__playzin`;
+  const profile = opts.profileId ? encodeURIComponent(opts.profileId) : null;
   const config = {
-    url: `${base}/save`,
+    url: profile ? `${base}/save/${profile}` : null,
     legacyUrl: `${base}/legacy`,
     gameId: opts.gameId,
     keep: LAUNCHER_PREFIX,
@@ -48,7 +61,7 @@ export function buildSaveShim(opts: { slotId: string; gameId: string; initial: S
 
 /* Roda no navegador, dentro do iframe do jogo. ES2017 simples, sem dependências. */
 function shim(cfg: {
-  url: string;
+  url: string | null;
   legacyUrl: string;
   gameId: string;
   keep: string;
@@ -118,9 +131,9 @@ function shim(cfg: {
     }).catch(() => undefined);
   }
 
-  // 1. Restaura os dados deste jogo (no modo "first", o navegador já está como deve)
+  // 1. Restaura os dados deste jogo/perfil (initial null = o navegador já está como deve)
   try {
-    if (cfg.initial && cfg.mode !== 'first') {
+    if (cfg.initial) {
       for (const k of allNonLauncherKeys()) remove.call(ls, k);
       for (const k of Object.keys(cfg.initial)) set.call(ls, k, cfg.initial[k]);
     }
@@ -137,7 +150,7 @@ function shim(cfg: {
     const data = snapshot();
     const body = JSON.stringify({ data, at: Date.now() });
     const serialized = JSON.stringify(data);
-    if (serialized === last) return;
+    if (serialized === last || !cfg.url) return;
     last = serialized;
     fetch(cfg.url, {
       method: 'PUT',
