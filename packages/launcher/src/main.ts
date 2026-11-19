@@ -87,6 +87,15 @@ connection.onMessage((msg) => {
       store.update({ status: 'empty', cartridge: null });
       store.notify('Cartucho removido');
       break;
+    case 'bluetooth':
+      store.update({ bluetooth: msg.state });
+      break;
+    case 'bluetooth-paired':
+      home.onBluetoothPaired(msg.device, msg.auto);
+      break;
+    case 'bluetooth-error':
+      home.showError(msg.message);
+      break;
     case 'cartridge-error':
       sounds.error();
       store.notify('Cartucho inválido: confira o playzin.json', 'error');

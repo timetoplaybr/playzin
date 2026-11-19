@@ -1,6 +1,10 @@
 import fs from 'node:fs';
 import { CartridgeManager } from './cartridge-manager.js';
 import { loadConfig } from './config.js';
+import { BluezBackend } from './bluetooth/bluez.js';
+import { BluetoothController } from './bluetooth/controller.js';
+import { MockBackend } from './bluetooth/mock.js';
+import type { BluetoothBackend } from './bluetooth/types.js';
 import { SaveStore } from './save-store.js';
 import { createServer } from './server.js';
 import { DirectorySource } from './sources/directory.js';
@@ -15,7 +19,18 @@ async function main(): Promise<void> {
   });
   const saves = new SaveStore(config.savesDir);
   await saves.init();
-  const app = await createServer(config, manager, saves);
+
+  let backend: BluetoothBackend | null = null;
+  if (config.bluetooth === 'mock') backend = new MockBackend();
+  else if (config.bluetooth === 'bluez' || (config.bluetooth === 'auto' && (await BluezBackend.isAvailable()))) {
+    backend = new BluezBackend();
+  }
+  const bluetooth = new BluetoothController(backend, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
+  const app = await createServer(config, manager, saves, bluetooth);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -34,10 +49,18 @@ async function main(): Promise<void> {
     await source.start();
   }
 
+  try {
+    // No Pi, liga o pareamento automático se não houver controle conhecido. No simulado, só se pedido.
+    await bluetooth.start({ autoPair: config.autoPair ?? backend?.name === 'bluez' });
+  } catch (err) {
+    app.log.warn(`Bluetooth indisponível: ${(err as Error).message}`);
+  }
+
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
+  app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
   if (config.sourceMode !== 'udisks') {
     app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
     if (config.driveRoots.length) app.log.info(`unidades observadas: ${config.driveRoots.map((d) => d.slice(0, 2)).join(' ')}`);
@@ -45,6 +68,7 @@ async function main(): Promise<void> {
 
   const shutdown = async () => {
     for (const source of sources) await source.stop();
+    await bluetooth.stop();
     await app.close();
     process.exit(0);
   };

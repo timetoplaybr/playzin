@@ -8,6 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export const REPO_ROOT = path.resolve(here, '../../..');
 
 export type SourceMode = 'auto' | 'dir' | 'udisks';
+export type BluetoothMode = 'auto' | 'bluez' | 'mock' | 'none';
 
 export interface DaemonConfig {
   host: string;
@@ -21,6 +22,10 @@ export interface DaemonConfig {
   pollIntervalMs: number;
   /** Onde ficam os saves dos jogos (um JSON por jogo). */
   savesDir: string;
+  /** auto = BlueZ se houver; mock = Bluetooth simulado (para testar a tela no PC). */
+  bluetooth: BluetoothMode;
+  /** Pareamento automático ao ligar sem controle conhecido (undefined = padrão do backend). */
+  autoPair: boolean | undefined;
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -49,7 +54,14 @@ function defaultSlotDirs(): string[] {
   return dirs;
 }
 
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaemonConfig {
+/** Lê --nome=valor da linha de comando (ex.: --bluetooth=mock). */
+function arg(argv: string[], name: string): string | undefined {
+  const hit = argv.find((a) => a === `--${name}` || a.startsWith(`--${name}=`));
+  if (!hit) return undefined;
+  return hit.includes('=') ? hit.slice(hit.indexOf('=') + 1) : 'true';
+}
+
+export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] = process.argv.slice(2)): DaemonConfig {
   const mode = (env.PLAYZIN_SOURCE ?? 'auto') as SourceMode;
   if (!['auto', 'dir', 'udisks'].includes(mode)) {
     throw new Error(`PLAYZIN_SOURCE inválido: "${mode}" (use auto, dir ou udisks)`);
@@ -69,5 +81,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): DaemonConfig {
     pollIntervalMs: Number(env.PLAYZIN_POLL_MS ?? 1000),
     // No Pi o systemd define /var/lib/playzin/saves; no computador fica dentro do projeto.
     savesDir: path.resolve(env.PLAYZIN_SAVES_DIR ?? path.join(REPO_ROOT, '.playzin-data', 'saves')),
+    bluetooth: parseBluetooth(arg(argv, 'bluetooth') ?? env.PLAYZIN_BLUETOOTH ?? 'auto'),
+    autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
   };
+}
+
+function parseBluetooth(value: string): BluetoothMode {
+  if (!['auto', 'bluez', 'mock', 'none'].includes(value)) {
+    throw new Error(`Bluetooth inválido: "${value}" (use auto, bluez, mock ou none)`);
+  }
+  return value as BluetoothMode;
+}
+
+function parseBool(value: string | undefined): boolean | undefined {
+  if (value === undefined) return undefined;
+  return !['0', 'false', 'no', 'nao', 'não'].includes(value.toLowerCase());
 }

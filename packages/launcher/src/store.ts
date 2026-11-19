@@ -1,4 +1,4 @@
-import type { CartridgeInfo } from '@playzin/shared';
+import type { BluetoothState, CartridgeInfo } from '@playzin/shared';
 
 export type ConsoleStatus = 'connecting' | 'empty' | 'ready' | 'playing';
 
@@ -7,13 +7,15 @@ export interface ConsoleState {
   cartridge: CartridgeInfo | null;
   /** Mensagem temporária para mostrar na tela (erro ou aviso). */
   notice: { text: string; kind: 'info' | 'error'; at: number } | null;
+  /** Estado do Bluetooth do console (null até o daemon responder). */
+  bluetooth: BluetoothState | null;
 }
 
 type Listener = (state: ConsoleState, previous: ConsoleState) => void;
 
 /** Estado único do console. Cenas e o frame do jogo só reagem a ele. */
 export class ConsoleStore {
-  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null };
+  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null, bluetooth: null };
   private listeners = new Set<Listener>();
 
   get(): ConsoleState {

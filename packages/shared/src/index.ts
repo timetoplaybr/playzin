@@ -38,9 +38,39 @@ export interface CartridgeInfo {
   insertedAt: string;
 }
 
+/** Tipo de dispositivo Bluetooth, deduzido do ícone/classe que o próprio aparelho anuncia. */
+export type BluetoothKind = 'gamepad' | 'keyboard' | 'mouse' | 'other';
+
+export interface BluetoothDevice {
+  /** Endereço MAC (ex.: "AA:BB:CC:DD:EE:FF"). */
+  address: string;
+  name: string;
+  kind: BluetoothKind;
+  paired: boolean;
+  connected: boolean;
+  /** O console está pareando este aparelho agora. */
+  pairing: boolean;
+}
+
+export interface BluetoothState {
+  /** Há Bluetooth neste console? (No PC de desenvolvimento normalmente não.) */
+  available: boolean;
+  /** "bluez" no Raspberry Pi, "mock" no Bluetooth simulado, "none" sem Bluetooth. */
+  backend: 'bluez' | 'mock' | 'none';
+  /** Procurando aparelhos agora. */
+  scanning: boolean;
+  /** Pareamento automático: o console liga sem controle conhecido e pareia o primeiro que achar. */
+  autoPair: boolean;
+  /** Só aparelhos de entrada (controles, teclados, mouses) e os já pareados. */
+  devices: BluetoothDevice[];
+}
+
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
+  | { type: 'bluetooth'; state: BluetoothState }
+  | { type: 'bluetooth-paired'; device: BluetoothDevice; auto: boolean }
+  | { type: 'bluetooth-error'; message: string; address?: string }
   | { type: 'cartridge-inserted'; cartridge: CartridgeInfo }
   | { type: 'cartridge-removed'; slotId: string }
   | { type: 'cartridge-error'; message: string; source: string };

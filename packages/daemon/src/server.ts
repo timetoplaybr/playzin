@@ -8,11 +8,14 @@ import type { CartridgeManager } from './cartridge-manager.js';
 import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
 import { isSaveData, MAX_SAVE_BYTES, type SaveStore } from './save-store.js';
+import type { BluetoothController } from './bluetooth/controller.js';
+import { BluetoothError } from './bluetooth/types.js';
 
 export async function createServer(
   config: DaemonConfig,
   manager: CartridgeManager,
   saves: SaveStore,
+  bluetooth: BluetoothController,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -108,6 +111,47 @@ export async function createServer(
     },
   );
 
+  // ---- Bluetooth: tela de controles ----
+  const ADDRESS = /^[0-9A-F]{2}(:[0-9A-F]{2}){5}$/i;
+  const btFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    reply.code(err instanceof BluetoothError ? 409 : 500).send({ error: (err as Error).message });
+
+  app.get('/api/bluetooth', async () => bluetooth.state());
+  app.post<{ Body: { on?: unknown } }>('/api/bluetooth/scan', async (req, reply) => {
+    try {
+      await bluetooth.setScan(req.body?.on !== false);
+      return bluetooth.state();
+    } catch (err) {
+      return btFail(reply, err);
+    }
+  });
+  app.post<{ Body: { on?: unknown } }>('/api/bluetooth/auto', async (req, reply) => {
+    try {
+      await bluetooth.setAutoPair(req.body?.on === true);
+      return bluetooth.state();
+    } catch (err) {
+      return btFail(reply, err);
+    }
+  });
+  app.post<{ Params: { address: string } }>('/api/bluetooth/devices/:address/pair', async (req, reply) => {
+    if (!ADDRESS.test(req.params.address)) return reply.code(400).send({ error: 'endereço inválido' });
+    try {
+      bluetooth.pair(req.params.address.toUpperCase());
+      return reply.code(202).send({ pairing: true });
+    } catch (err) {
+      return btFail(reply, err);
+    }
+  });
+  app.delete<{ Params: { address: string } }>('/api/bluetooth/devices/:address', async (req, reply) => {
+    if (!ADDRESS.test(req.params.address)) return reply.code(400).send({ error: 'endereço inválido' });
+    try {
+      await bluetooth.forget(req.params.address.toUpperCase());
+      return reply.code(204).send();
+    } catch (err) {
+      return btFail(reply, err);
+    }
+  });
+
   app.get('/api/saves', async () => ({ saves: await saves.list() }));
   app.delete<{ Params: { id: string } }>('/api/saves/:id', async (req, reply) => {
     try {
@@ -126,6 +170,7 @@ export async function createServer(
   // ---- WebSocket: avisa o launcher em tempo real ----
   app.get(WS_PATH, { websocket: true }, (socket) => {
     send(socket, { type: 'state', cartridge: manager.current });
+    send(socket, { type: 'bluetooth', state: bluetooth.state() });
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -143,6 +188,9 @@ export async function createServer(
   manager.on('inserted', (cartridge) => broadcast({ type: 'cartridge-inserted', cartridge }));
   manager.on('removed', (slotId) => broadcast({ type: 'cartridge-removed', slotId }));
   manager.on('error', (message, source) => broadcast({ type: 'cartridge-error', message, source }));
+  bluetooth.on('state', (state) => broadcast({ type: 'bluetooth', state }));
+  bluetooth.on('paired', (device, auto) => broadcast({ type: 'bluetooth-paired', device, auto }));
+  bluetooth.on('error', (message, address) => broadcast({ type: 'bluetooth-error', message, address }));
 
   return app;
 }

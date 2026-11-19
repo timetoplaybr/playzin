@@ -1,7 +1,8 @@
 import { getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
-import type { CartridgeInfo, SaveSummary } from '@playzin/shared';
+import type { BluetoothDevice, CartridgeInfo, SaveSummary } from '@playzin/shared';
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
+import { ControllersPanel } from './controllers-panel';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
 
@@ -75,6 +76,7 @@ export class HomeUI {
   private systemIndex = 0;
   private focusKey: string | null = null;
   private panel: Panel = null;
+  private readonly ctrlPanel: ControllersPanel;
   private sysButtons: SystemButton[] = [];
   private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
@@ -142,6 +144,15 @@ export class HomeUI {
       panel: q('.panel'),
     };
 
+    this.ctrlPanel = new ControllersPanel({
+      store,
+      sounds,
+      toast: (text, kind) => this.showToast(text, kind),
+      rerender: () => {
+        if (this.panel === 'controllers') this.renderPanel();
+        this.renderHints();
+      },
+    });
     this.buildSystemRow();
     // A linha de sistema muda quando entra/sai da tela cheia (ícone e texto do botão).
     document.addEventListener('fullscreenchange', () => this.buildSystemRow());
@@ -181,6 +192,16 @@ export class HomeUI {
     }
   }
 
+  /** Um controle Bluetooth acabou de ser pareado (aviso do daemon). */
+  onBluetoothPaired(device: BluetoothDevice, auto: boolean): void {
+    this.ctrlPanel.onPaired(device, auto);
+  }
+
+  showError(text: string): void {
+    this.sounds.error();
+    this.showToast(text, 'error');
+  }
+
   setConnected(connected: boolean): void {
     this.connected = connected;
     this.renderStatus();
@@ -205,6 +226,7 @@ export class HomeUI {
 
     this.renderTiles(justInserted);
     this.renderStatus();
+    if (state.bluetooth !== prev.bluetooth && this.panel === 'controllers') this.renderPanel();
 
     if (state.notice && state.notice !== prev.notice) this.showToast(state.notice.text, state.notice.kind);
   }
@@ -468,6 +490,7 @@ export class HomeUI {
 
   private openPanel(panel: Exclude<Panel, null>): void {
     this.panel = panel;
+    if (panel === 'controllers') this.ctrlPanel.open();
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -481,6 +504,7 @@ export class HomeUI {
 
   private closePanel(): void {
     if (!this.panel) return;
+    if (this.panel === 'controllers') this.ctrlPanel.close();
     this.panel = null;
     this.el.backdrop.hidden = true;
     this.sounds.back();
@@ -562,21 +586,8 @@ export class HomeUI {
       );
       this.renderHints();
     } else if (this.panel === 'controllers') {
-      const pads = getConnectedGamepads();
-      const list = pads.length
-        ? pads
-            .map(
-              (p, i) =>
-                `<li><span class="player-badge">P${i + 1}</span><span class="pad-name">${escapeHtml(cleanPadName(p.id))}</span>` +
-                `<span class="pad-map">${p.mapping === 'standard' ? 'mapeamento padrão' : 'mapeamento genérico'}</span></li>`,
-            )
-            .join('')
-        : `<li class="muted">Nenhum controle conectado.</li>`;
-      this.el.panel.innerHTML = `
-        <h2>${icons.gamepad} Controles</h2>
-        <ul class="pad-list">${list}</ul>
-        <p class="muted">O teclado sempre funciona como jogador 1. Para parear um controle Bluetooth,
-        veja a seção “Controle de Xbox” no README.</p>`;
+      this.ctrlPanel.render(this.el.panel);
+      this.renderHints();
     } else if (this.panel === 'settings') {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
@@ -597,14 +608,21 @@ export class HomeUI {
     const { status } = this.store.get();
     this.el.net.innerHTML = this.connected ? icons.wifi : icons.wifiOff;
     this.el.net.classList.toggle('off', !this.connected);
+    const bt = this.store.get().bluetooth;
     this.el.connState.textContent =
-      !this.connected || status === 'connecting' ? 'Conectando ao sistema…' : '';
+      !this.connected || status === 'connecting'
+        ? 'Conectando ao sistema…'
+        : bt?.autoPair
+          ? 'Procurando controles Bluetooth: coloque o controle em modo de pareamento'
+          : '';
   }
 
   private renderHints(): void {
     const hint = (glyph: string, label: string) => `<span class="hint"><span class="glyph">${glyph}</span>${label}</span>`;
     let html = '';
-    if (this.panel === 'saves') {
+    if (this.panel === 'controllers') {
+      html = this.ctrlPanel.hints(hint);
+    } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel) {
       html = hint('B', 'Voltar');
@@ -645,6 +663,14 @@ export class HomeUI {
     this.input.update();
     if (++this.frame % 30 === 0) this.updatePads();
 
+    if (this.panel === 'controllers') {
+      const result = this.ctrlPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
     if (this.panel === 'saves') {
       if (this.input.justPressed('back')) return this.closePanel();
       if (this.input.justPressed('action')) void this.deleteSelectedSave();
@@ -739,10 +765,6 @@ function formatBytes(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
 }
 
-function cleanPadName(id: string): string {
-  // "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product: 0b13)" → "Xbox Wireless Controller"
-  return id.replace(/\s*\(.*\)\s*$/, '').trim() || id;
-}
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

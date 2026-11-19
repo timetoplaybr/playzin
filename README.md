@@ -154,6 +154,31 @@ Ações: `up`, `down`, `left`, `right`, `confirm` (A), `back` (B), `action` (X),
 Fora do console, `ready()` e `exitToMenu()` não fazem nada: o jogo continua rodando normalmente no navegador.
 O `mozin-e-mozinzin-the-game` é um exemplo completo de jogo integrado.
 
+## Controles Bluetooth
+
+O pareamento é feito pela tela do console, sem terminal: **Controles → Adicionar controle**.
+
+1. Coloque o controle em modo de pareamento (a tela mostra como no Xbox, DualSense e DualShock 4).
+2. Ele aparece em "Encontrados"; escolha e aperte **A**.
+3. O console pareia, marca como confiável e conecta. Daí em diante, basta ligar o controle.
+
+Em Controles também dá para **esquecer** um controle (X duas vezes). A lista mostra só controles,
+teclados e mouses (fones e caixas de som ficam de fora).
+
+**O primeiro controle:** para navegar até "Adicionar controle" é preciso algum controle. Se o
+console ligar sem nenhum controle pareado, ele entra em **pareamento automático** por 5 minutos:
+coloque o controle em modo de pareamento e ele é conectado sozinho (o rodapé avisa quando isso
+está ativo). Um controle com cabo USB ou um teclado USB também funcionam na hora.
+
+**No computador** não existe o Bluetooth do console (é o BlueZ, do Linux). Para usar e testar
+a tela no Mac/Windows há um **Bluetooth simulado**, com controles de mentira:
+
+```bash
+npm run start:bt-simulado
+```
+
+O 8BitDo simulado falha na primeira tentativa de propósito, para mostrar a mensagem de erro.
+
 ## Saves: o progresso fica no console
 
 Os jogos continuam usando `localStorage` (ou o `createSaveStore` do SDK) normalmente, sem
@@ -190,9 +215,13 @@ Depois do reboot, o Pi abre direto o menu na TV. Grave um cartucho num pendrive 
 
 Logs: `journalctl -u playzin-daemon -f` e `journalctl -u playzin-kiosk -f`.
 
-**Controle de Xbox via Bluetooth:** pareie uma vez pelo terminal do Pi (`bluetoothctl` →
-`scan on` → `pair <MAC>` → `trust <MAC>` → `connect <MAC>`). Para o mapeamento e a vibração
-corretos, instale o driver [xpadneo](https://github.com/atar-axis/xpadneo).
+**Controles Bluetooth:** veja a seção "Controles Bluetooth" acima: o pareamento é feito pela
+própria tela do console. O `setup.sh` também instala o driver
+[xpadneo](https://github.com/atar-axis/xpadneo), que acerta o mapeamento dos botões e a vibração
+dos controles de Xbox por Bluetooth (ele não interfere em outros controles). Ele é baixado do
+GitHub e compilado no Pi, então a instalação precisa de internet e leva alguns minutos a mais.
+Se a compilação falhar, o setup avisa e segue: o controle de Xbox só fica com o driver genérico.
+Para pular: `sudo ./scripts/pi/setup.sh --sem-xpadneo`.
 
 **Somente leitura (opcional, no fim):** `sudo raspi-config` → Performance Options →
 Overlay File System. Faça isso **depois** de parear os controles: com o overlay ligado,
@@ -210,6 +239,8 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 | `PLAYZIN_SLOT_DIRS` | `dev-slot` (+ `/Volumes` no Mac) | Pastas observadas, separadas por vírgula |
 | `PLAYZIN_DRIVE_ROOTS` | no Windows: `D:\` a `Z:\` (menos a do sistema) | Pastas que são, elas mesmas, um cartucho |
 | `PLAYZIN_POLL_MS` | `1000` | Intervalo de verificação das pastas |
+| `PLAYZIN_BLUETOOTH` | `auto` | `auto` (BlueZ se houver), `bluez`, `mock` (simulado) ou `none`. Também `--bluetooth=mock` |
+| `PLAYZIN_BT_AUTOPAIR` | ligado no Pi | Pareamento automático ao ligar sem controle pareado (`0` desliga). Também `--autopair` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 
 ## Status
@@ -219,7 +250,8 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [x] SDK: input unificado teclado/controle, saves por jogo, `ready()` / `exitToMenu()`
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)
 - [x] Comando `playzin` (init, build, check, insert, eject, pack) e SDK em `playzin/sdk`
-- [ ] Tela de pareamento Bluetooth no próprio launcher
+- [x] Pareamento Bluetooth pela tela do console (com pareamento automático e Bluetooth simulado)
+- [ ] Testar o Bluetooth de verdade (BlueZ) no Raspberry Pi
 - [x] Saves guardados pelo console, isolados por jogo, com a tela Dados salvos
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
 - [ ] Backup dos saves num pendrive
