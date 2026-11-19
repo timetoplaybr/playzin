@@ -9,6 +9,7 @@ export const REPO_ROOT = path.resolve(here, '../../..');
 
 export type SourceMode = 'auto' | 'dir' | 'udisks';
 export type BluetoothMode = 'auto' | 'bluez' | 'mock' | 'none';
+export type WifiMode = 'auto' | 'networkmanager' | 'mock' | 'none';
 
 export interface DaemonConfig {
   host: string;
@@ -26,6 +27,8 @@ export interface DaemonConfig {
   bluetooth: BluetoothMode;
   /** Pareamento automático ao ligar sem controle conhecido (undefined = padrão do backend). */
   autoPair: boolean | undefined;
+  /** auto = NetworkManager se houver; mock = Wi-Fi simulado (para testar a tela no PC). */
+  wifi: WifiMode;
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -83,6 +86,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     savesDir: path.resolve(env.PLAYZIN_SAVES_DIR ?? path.join(REPO_ROOT, '.playzin-data', 'saves')),
     bluetooth: parseBluetooth(arg(argv, 'bluetooth') ?? env.PLAYZIN_BLUETOOTH ?? 'auto'),
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
+    wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),
   };
 }
 
@@ -91,6 +95,13 @@ function parseBluetooth(value: string): BluetoothMode {
     throw new Error(`Bluetooth inválido: "${value}" (use auto, bluez, mock ou none)`);
   }
   return value as BluetoothMode;
+}
+
+function parseWifi(value: string): WifiMode {
+  if (!['auto', 'networkmanager', 'mock', 'none'].includes(value)) {
+    throw new Error(`Wi-Fi inválido: "${value}" (use auto, networkmanager, mock ou none)`);
+  }
+  return value as WifiMode;
 }
 
 function parseBool(value: string | undefined): boolean | undefined {

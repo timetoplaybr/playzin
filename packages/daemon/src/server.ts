@@ -9,6 +9,8 @@ import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
 import { isSaveData, MAX_SAVE_BYTES, type SaveStore } from './save-store.js';
 import type { BluetoothController } from './bluetooth/controller.js';
+import type { WifiController } from './wifi/controller.js';
+import { WifiError } from './wifi/types.js';
 import { BluetoothError } from './bluetooth/types.js';
 
 export async function createServer(
@@ -16,6 +18,7 @@ export async function createServer(
   manager: CartridgeManager,
   saves: SaveStore,
   bluetooth: BluetoothController,
+  wifi: WifiController,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -152,6 +155,41 @@ export async function createServer(
     }
   });
 
+  // ---- Wi-Fi: tela de redes ----
+  const wifiFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    reply
+      .code(err instanceof WifiError ? 409 : 500)
+      .send({ error: (err as Error).message, wrongPassword: err instanceof WifiError && err.wrongPassword });
+
+  app.get('/api/wifi', async () => wifi.state());
+  app.post('/api/wifi/scan', async (_req, reply) => {
+    try {
+      void wifi.scan().catch((err) => app.log.warn(`[wifi] busca: ${(err as Error).message}`));
+      return reply.code(202).send(wifi.state());
+    } catch (err) {
+      return wifiFail(reply, err);
+    }
+  });
+  app.post<{ Body: { ssid?: unknown; password?: unknown } }>('/api/wifi/connect', async (req, reply) => {
+    const { ssid, password } = req.body ?? {};
+    if (typeof ssid !== 'string' || !ssid) return reply.code(400).send({ error: 'ssid obrigatório' });
+    if (password !== undefined && typeof password !== 'string') return reply.code(400).send({ error: 'senha inválida' });
+    try {
+      wifi.connect(ssid, password);
+      return reply.code(202).send({ connecting: ssid });
+    } catch (err) {
+      return wifiFail(reply, err);
+    }
+  });
+  app.delete<{ Params: { ssid: string } }>('/api/wifi/networks/:ssid', async (req, reply) => {
+    try {
+      await wifi.forget(req.params.ssid);
+      return reply.code(204).send();
+    } catch (err) {
+      return wifiFail(reply, err);
+    }
+  });
+
   app.get('/api/saves', async () => ({ saves: await saves.list() }));
   app.delete<{ Params: { id: string } }>('/api/saves/:id', async (req, reply) => {
     try {
@@ -171,6 +209,7 @@ export async function createServer(
   app.get(WS_PATH, { websocket: true }, (socket) => {
     send(socket, { type: 'state', cartridge: manager.current });
     send(socket, { type: 'bluetooth', state: bluetooth.state() });
+    send(socket, { type: 'wifi', state: wifi.state() });
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -191,6 +230,9 @@ export async function createServer(
   bluetooth.on('state', (state) => broadcast({ type: 'bluetooth', state }));
   bluetooth.on('paired', (device, auto) => broadcast({ type: 'bluetooth-paired', device, auto }));
   bluetooth.on('error', (message, address) => broadcast({ type: 'bluetooth-error', message, address }));
+  wifi.on('state', (state) => broadcast({ type: 'wifi', state }));
+  wifi.on('connected', (ssid) => broadcast({ type: 'wifi-connected', ssid }));
+  wifi.on('error', (message, ssid, wrongPassword) => broadcast({ type: 'wifi-error', message, ssid, wrongPassword }));
 
   return app;
 }

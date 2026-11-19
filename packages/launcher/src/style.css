@@ -714,6 +714,242 @@ svg {
   animation: spin 0.9s linear infinite;
 }
 
+/* ---------- Wi-Fi ---------- */
+
+.signal {
+  display: inline-block;
+  width: 22px;
+  height: 22px;
+  vertical-align: -4px;
+  margin-right: 2px;
+}
+
+.signal.lvl-1 .a2,
+.signal.lvl-1 .a3,
+.signal.lvl-2 .a3 {
+  opacity: 0.25;
+}
+
+.net .signal {
+  width: 26px;
+  height: 26px;
+  margin: 0;
+}
+
+.net.muted-icon {
+  color: var(--muted);
+}
+
+.lock {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: -2px;
+  color: var(--muted);
+}
+
+.wifi-status {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 19px;
+}
+
+.wifi-status > svg,
+.wifi-status > .signal {
+  width: 34px;
+  height: 34px;
+  flex: none;
+}
+
+.wifi-status div {
+  display: grid;
+  gap: 2px;
+}
+
+.wifi-status.ok {
+  box-shadow: inset 0 0 0 2px rgba(76, 255, 138, 0.35);
+}
+
+.wifi-status.off {
+  box-shadow: inset 0 0 0 2px rgba(255, 107, 107, 0.4);
+}
+
+.wifi-list li.connected .save-meta {
+  color: #7dffaa;
+}
+
+/* ---------- teclado virtual ---------- */
+
+.vk-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 8; /* por cima dos painéis, por baixo dos avisos */
+  display: grid;
+  place-items: center;
+  background: rgba(10, 10, 12, 0.7);
+  animation: fade-in 0.12s ease;
+}
+
+.vk-backdrop[hidden] {
+  display: none;
+}
+
+.vk {
+  width: 860px;
+  padding: 28px 32px 22px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+  animation: pop-in 0.16s cubic-bezier(0.2, 1.2, 0.4, 1);
+}
+
+.vk h2 {
+  margin: 0 0 6px;
+  font-size: 26px;
+}
+
+.vk-sub {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.vk-sub.error {
+  color: #ffb3b3;
+}
+
+.vk-field {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: inset 0 0 0 2px var(--accent);
+  font-size: 26px;
+  font-family: ui-monospace, 'DejaVu Sans Mono', Menlo, monospace;
+  letter-spacing: 0.06em;
+}
+
+.vk-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: pre;
+  text-overflow: clip;
+  direction: rtl; /* texto longo: mostra o final, onde se está digitando */
+  text-align: left;
+}
+
+.vk-caret {
+  display: inline-block;
+  width: 2px;
+  height: 28px;
+  margin-left: 2px;
+  vertical-align: -5px;
+  background: var(--accent);
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.vk-eye {
+  margin-left: auto;
+  width: 36px;
+  height: 36px;
+  padding: 6px;
+  color: var(--muted);
+}
+
+.vk-counter {
+  display: block;
+  margin: 8px 2px 0;
+  font-size: 15px;
+  color: var(--muted);
+  text-align: right;
+}
+
+.vk-counter.short {
+  color: #ffd866;
+}
+
+.vk-counter.flash {
+  animation: shake 0.35s ease;
+  color: var(--danger);
+}
+
+.vk-keys {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.vk-row {
+  display: flex;
+  gap: 8px;
+}
+
+.vk-key {
+  position: relative;
+  height: 52px;
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.vk-key.special {
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 18px;
+  color: #d8dae0;
+}
+
+.vk-key.active {
+  color: var(--accent-2);
+}
+
+.vk-key.ok {
+  background: var(--accent);
+  color: #00222b;
+  font-weight: 800;
+}
+
+.vk-key.focused::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
+  border-radius: 14px;
+  border: 4px solid var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+  animation: focus-pulse 1.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.vk-hints {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 22px;
+  margin-top: 18px;
+  font-size: 17px;
+}
+
+.vk-hints .glyph {
+  width: 26px;
+  height: 26px;
+  font-size: 14px;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;

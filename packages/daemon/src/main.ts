@@ -6,6 +6,10 @@ import { BluetoothController } from './bluetooth/controller.js';
 import { MockBackend } from './bluetooth/mock.js';
 import type { BluetoothBackend } from './bluetooth/types.js';
 import { SaveStore } from './save-store.js';
+import { WifiController } from './wifi/controller.js';
+import { MockWifiBackend } from './wifi/mock.js';
+import { NetworkManagerBackend } from './wifi/networkmanager.js';
+import type { WifiBackend } from './wifi/types.js';
 import { createServer } from './server.js';
 import { DirectorySource } from './sources/directory.js';
 import type { CartridgeSource } from './sources/types.js';
@@ -30,7 +34,17 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, bluetooth);
+  let wifiBackend: WifiBackend | null = null;
+  if (config.wifi === 'mock') wifiBackend = new MockWifiBackend();
+  else if (config.wifi === 'networkmanager' || (config.wifi === 'auto' && (await NetworkManagerBackend.isAvailable()))) {
+    wifiBackend = new NetworkManagerBackend();
+  }
+  const wifi = new WifiController(wifiBackend, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
+  const app = await createServer(config, manager, saves, bluetooth, wifi);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -56,11 +70,18 @@ async function main(): Promise<void> {
     app.log.warn(`Bluetooth indisponível: ${(err as Error).message}`);
   }
 
+  try {
+    await wifi.start();
+  } catch (err) {
+    app.log.warn(`Wi-Fi indisponível: ${(err as Error).message}`);
+  }
+
   await app.listen({ host: config.host, port: config.port });
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
   app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
+  app.log.info(`wi-fi: ${wifiBackend ? (wifiBackend.name === 'mock' ? 'simulado' : 'NetworkManager') : 'indisponível'}`);
   if (config.sourceMode !== 'udisks') {
     app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
     if (config.driveRoots.length) app.log.info(`unidades observadas: ${config.driveRoots.map((d) => d.slice(0, 2)).join(' ')}`);
@@ -69,6 +90,7 @@ async function main(): Promise<void> {
   const shutdown = async () => {
     for (const source of sources) await source.stop();
     await bluetooth.stop();
+    await wifi.stop();
     await app.close();
     process.exit(0);
   };

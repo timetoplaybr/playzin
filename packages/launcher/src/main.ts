@@ -96,6 +96,15 @@ connection.onMessage((msg) => {
     case 'bluetooth-error':
       home.showError(msg.message);
       break;
+    case 'wifi':
+      store.update({ wifi: msg.state });
+      break;
+    case 'wifi-connected':
+      home.onWifiConnected(msg.ssid);
+      break;
+    case 'wifi-error':
+      home.onWifiError(msg.message, msg.ssid, Boolean(msg.wrongPassword));
+      break;
     case 'cartridge-error':
       sounds.error();
       store.notify('Cartucho inválido: confira o playzin.json', 'error');

@@ -53,7 +53,7 @@ Para os seus jogos, use o comando `playzin` dentro da pasta de cada um (próxima
 
 - **Fileira de jogos:** o cartucho inserido aparece primeiro; os jogos que já passaram pelo
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
-- **Ícones de sistema:** Controles (lista os controles conectados), Dados salvos (progresso de cada
+- **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Dados salvos (progresso de cada
   jogo, com opção de apagar), Configurações (versão, status) e Tela cheia (também pela tecla **F**).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
   No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
@@ -171,13 +171,39 @@ coloque o controle em modo de pareamento e ele é conectado sozinho (o rodapé a
 está ativo). Um controle com cabo USB ou um teclado USB também funcionam na hora.
 
 **No computador** não existe o Bluetooth do console (é o BlueZ, do Linux). Para usar e testar
-a tela no Mac/Windows há um **Bluetooth simulado**, com controles de mentira:
+a tela no Mac/Windows há um **Bluetooth simulado**, com controles de mentira (veja "Testando no
+PC com Bluetooth e Wi-Fi simulados" abaixo). O 8BitDo simulado falha na primeira tentativa de
+propósito, para mostrar a mensagem de erro.
+
+## Wi-Fi
+
+Em **Wi-Fi**, na tela inicial: a rede atual (com o IP) e as redes por perto, com a força do
+sinal e um cadeado nas protegidas. Escolha uma rede e aperte **A**; se ela pedir senha, abre o
+**teclado virtual**. A rede fica salva, e da próxima vez o console conecta sem pedir senha.
+**X** duas vezes esquece uma rede salva e **Y** procura de novo. Senha errada? O console avisa e
+abre o teclado de novo.
+
+O teclado virtual funciona com o controle: direcional escolhe a tecla, **A** digita,
+**B** apaga (com o campo vazio, cancela), **X** liga as maiúsculas, **Y** mostra/oculta a senha e
+**Menu (☰)** confirma. A tecla **?123** troca para números e símbolos. Um teclado de verdade
+(USB ou Bluetooth) também funciona: é só digitar.
+
+A rede configurada no Raspberry Pi Imager, na gravação do cartão SD, já aparece como salva.
+Os jogos não precisam de internet; ela serve para acertar o relógio (o Pi 4 não guarda a hora
+desligado) e para atualizações.
+
+## Testando no PC com Bluetooth e Wi-Fi simulados
+
+No computador, as telas de Controles e Wi-Fi não mexem no Bluetooth nem no Wi-Fi de verdade.
+Para usá-las e testá-las, há versões simuladas:
 
 ```bash
-npm run start:bt-simulado
+npm run start:simulado
 ```
 
-O 8BitDo simulado falha na primeira tentativa de propósito, para mostrar a mensagem de erro.
+- Bluetooth: quatro aparelhos aparecem na busca; o 8BitDo falha na primeira tentativa.
+- Wi-Fi: começa conectado em "Casa do Diego"; a senha das redes protegidas é `playzin123`
+  (qualquer outra dá "senha incorreta"); "Cafeteria Livre" é aberta.
 
 ## Saves: o progresso fica no console
 
@@ -241,6 +267,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 | `PLAYZIN_POLL_MS` | `1000` | Intervalo de verificação das pastas |
 | `PLAYZIN_BLUETOOTH` | `auto` | `auto` (BlueZ se houver), `bluez`, `mock` (simulado) ou `none`. Também `--bluetooth=mock` |
 | `PLAYZIN_BT_AUTOPAIR` | ligado no Pi | Pareamento automático ao ligar sem controle pareado (`0` desliga). Também `--autopair` |
+| `PLAYZIN_WIFI` | `auto` | `auto` (NetworkManager se houver), `networkmanager`, `mock` (simulado) ou `none`. Também `--wifi=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 
 ## Status
@@ -251,7 +278,9 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)
 - [x] Comando `playzin` (init, build, check, insert, eject, pack) e SDK em `playzin/sdk`
 - [x] Pareamento Bluetooth pela tela do console (com pareamento automático e Bluetooth simulado)
+- [x] Escolha do Wi-Fi pela tela do console, com teclado virtual
 - [ ] Testar o Bluetooth de verdade (BlueZ) no Raspberry Pi
+- [ ] Testar o Wi-Fi de verdade (NetworkManager) no Raspberry Pi
 - [x] Saves guardados pelo console, isolados por jogo, com a tela Dados salvos
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
 - [ ] Backup dos saves num pendrive

@@ -199,6 +199,8 @@ export class ControllersPanel {
     }
     this.index = Math.max(0, Math.min(this.index, Math.max(0, this.count() - 1)));
     el.innerHTML = this.view === 'scan' ? this.renderScan() : this.renderMain();
+    // Lista maior que o painel: mantém o item selecionado à vista.
+    el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
     el.querySelectorAll<HTMLElement>('[data-index]').forEach((node) =>
       node.addEventListener('click', (e) => {
         const i = Number(node.dataset.index);
@@ -238,7 +240,7 @@ export class ControllersPanel {
       bluetooth = `<p class="muted">Conectando ao sistema…</p>`;
     } else if (!bt.available) {
       bluetooth = `<p class="muted">Este computador não tem o Bluetooth do console. No Raspberry Pi, é aqui que você pareia os
-        controles. Para testar esta tela no PC, ligue o console com <code>npm run start:bt-simulado</code>.</p>`;
+        controles. Para testar esta tela no PC, ligue o console com <code>npm run start:simulado</code>.</p>`;
     } else {
       const items = this.mainItems();
       bluetooth = `<ul class="save-list">${items

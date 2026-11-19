@@ -15,7 +15,7 @@
   "scripts": {
     "build": "npm run build -w @playzin/shared && npm run build -w @playzin/sdk && npm run build -w playzin && npm run build -w @playzin/daemon && npm run build -w @playzin/launcher && npm run build -w hello-playzin",
     "start": "npm run build && npm run start -w @playzin/daemon",
-    "start:bt-simulado": "npm run build && npm run start -w @playzin/daemon -- --bluetooth=mock",
+    "start:simulado": "npm run build && npm run start -w @playzin/daemon -- --bluetooth=mock --wifi=mock",
     "dev:daemon": "npm run dev -w @playzin/daemon",
     "dev:launcher": "npm run dev -w @playzin/launcher",
     "typecheck": "npm run typecheck --workspaces --if-present",

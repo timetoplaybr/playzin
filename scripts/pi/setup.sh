@@ -38,7 +38,7 @@ step() { echo -e "\n\033[1;33m==> $*\033[0m"; }
 step "Pacotes do sistema (cage, Chromium, UDisks2, Bluetooth)"
 apt-get update
 apt-get install -y --no-install-recommends \
-  cage curl ca-certificates rsync udisks2 bluez \
+  cage curl ca-certificates rsync udisks2 bluez network-manager \
   fonts-dejavu-core
 apt-get install -y --no-install-recommends polkitd || apt-get install -y --no-install-recommends policykit-1
 # O nome do pacote do Chromium mudou entre versões do Raspberry Pi OS.
@@ -70,8 +70,9 @@ chmod +x "$APP_DIR/scripts/pi/kiosk.sh"
 step "Dependências e build (pode levar alguns minutos no Pi)"
 sudo -u "$APP_USER" -H bash -c "cd '$APP_DIR' && npm install --no-audit --no-fund && npm run build"
 
-step "Permissão para montar pendrives (polkit)"
+step "Permissões: montar pendrives e escolher o Wi-Fi (polkit)"
 install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-udisks.rules" /etc/polkit-1/rules.d/50-playzin-udisks.rules
+install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-network.rules" /etc/polkit-1/rules.d/50-playzin-network.rules
 
 step "Bluetooth (permissão para o console parear controles)"
 install -m 644 "$APP_DIR/scripts/pi/files/playzin-bluetooth.conf" /etc/dbus-1/system.d/playzin-bluetooth.conf

@@ -1,0 +1,14 @@
+// Permite que o usuário "playzin" (que roda o daemon, sem sessão gráfica) escolha a rede
+// Wi-Fi pela tela do console: procurar redes, conectar, salvar e esquecer.
+polkit.addRule(function (action, subject) {
+  if (subject.user !== "playzin") return polkit.Result.NOT_HANDLED;
+  var allowed = [
+    "org.freedesktop.NetworkManager.network-control",
+    "org.freedesktop.NetworkManager.wifi.scan",
+    "org.freedesktop.NetworkManager.enable-disable-wifi",
+    "org.freedesktop.NetworkManager.settings.modify.system",
+    "org.freedesktop.NetworkManager.settings.modify.own"
+  ];
+  if (allowed.indexOf(action.id) >= 0) return polkit.Result.YES;
+  return polkit.Result.NOT_HANDLED;
+});

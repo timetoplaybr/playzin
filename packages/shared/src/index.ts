@@ -65,12 +65,38 @@ export interface BluetoothState {
   devices: BluetoothDevice[];
 }
 
+export interface WifiNetwork {
+  ssid: string;
+  /** Força do sinal, 0–100. */
+  signal: number;
+  /** Pede senha? */
+  secured: boolean;
+  /** O console já tem esta rede salva (conecta sem pedir senha). */
+  known: boolean;
+  connected: boolean;
+}
+
+export interface WifiState {
+  /** Há Wi-Fi controlável neste console? (No PC de desenvolvimento normalmente não.) */
+  available: boolean;
+  backend: 'networkmanager' | 'mock' | 'none';
+  scanning: boolean;
+  /** Rede à qual o console está tentando se conectar agora. */
+  connecting: string | null;
+  current: { ssid: string; signal: number; ip: string | null } | null;
+  /** Redes por perto (sem repetir nome), a conectada primeiro. */
+  networks: WifiNetwork[];
+}
+
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
   | { type: 'bluetooth'; state: BluetoothState }
   | { type: 'bluetooth-paired'; device: BluetoothDevice; auto: boolean }
   | { type: 'bluetooth-error'; message: string; address?: string }
+  | { type: 'wifi'; state: WifiState }
+  | { type: 'wifi-connected'; ssid: string }
+  | { type: 'wifi-error'; message: string; ssid?: string; wrongPassword?: boolean }
   | { type: 'cartridge-inserted'; cartridge: CartridgeInfo }
   | { type: 'cartridge-removed'; slotId: string }
   | { type: 'cartridge-error'; message: string; source: string };

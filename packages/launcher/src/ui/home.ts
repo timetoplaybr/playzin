@@ -3,6 +3,8 @@ import type { BluetoothDevice, CartridgeInfo, SaveSummary } from '@playzin/share
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
 import { ControllersPanel } from './controllers-panel';
+import { VirtualKeyboard } from './keyboard';
+import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
 
@@ -22,7 +24,7 @@ type Tile =
   | { kind: 'recent'; key: string; entry: LibraryEntry }
   | { kind: 'empty'; key: string };
 
-type SystemId = 'controllers' | 'saves' | 'settings' | 'fullscreen' | 'power';
+type SystemId = 'controllers' | 'wifi' | 'saves' | 'settings' | 'fullscreen' | 'power';
 interface SystemButton {
   id: SystemId;
   label: string;
@@ -33,6 +35,7 @@ interface SystemButton {
 function systemButtons(): SystemButton[] {
   const list: SystemButton[] = [
     { id: 'controllers', label: 'Controles', icon: icons.gamepad },
+    { id: 'wifi', label: 'Wi-Fi', icon: icons.wifi },
     { id: 'saves', label: 'Dados salvos', icon: icons.save },
     { id: 'settings', label: 'Configurações', icon: icons.settings },
   ];
@@ -57,7 +60,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'saves' | 'settings' | null;
+type Panel = 'controllers' | 'wifi' | 'saves' | 'settings' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -77,6 +80,8 @@ export class HomeUI {
   private focusKey: string | null = null;
   private panel: Panel = null;
   private readonly ctrlPanel: ControllersPanel;
+  private readonly wifiPanel: WifiPanel;
+  private readonly keyboard: VirtualKeyboard;
   private sysButtons: SystemButton[] = [];
   private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
@@ -153,6 +158,18 @@ export class HomeUI {
         this.renderHints();
       },
     });
+    this.keyboard = new VirtualKeyboard(root, sounds);
+    this.wifiPanel = new WifiPanel({
+      store,
+      sounds,
+      keyboard: this.keyboard,
+      toast: (text, kind) => this.showToast(text, kind),
+      rerender: () => {
+        if (this.panel === 'wifi') this.renderPanel();
+        this.renderHints();
+      },
+      isOpen: () => this.panel === 'wifi',
+    });
     this.buildSystemRow();
     // A linha de sistema muda quando entra/sai da tela cheia (ícone e texto do botão).
     document.addEventListener('fullscreenchange', () => this.buildSystemRow());
@@ -192,6 +209,14 @@ export class HomeUI {
     }
   }
 
+  onWifiConnected(ssid: string): void {
+    this.wifiPanel.onConnected(ssid);
+  }
+
+  onWifiError(message: string, ssid: string | undefined, wrongPassword: boolean): void {
+    this.wifiPanel.onError(message, ssid, wrongPassword);
+  }
+
   /** Um controle Bluetooth acabou de ser pareado (aviso do daemon). */
   onBluetoothPaired(device: BluetoothDevice, auto: boolean): void {
     this.ctrlPanel.onPaired(device, auto);
@@ -227,6 +252,7 @@ export class HomeUI {
     this.renderTiles(justInserted);
     this.renderStatus();
     if (state.bluetooth !== prev.bluetooth && this.panel === 'controllers') this.renderPanel();
+    if (state.wifi !== prev.wifi && this.panel === 'wifi') this.renderPanel();
 
     if (state.notice && state.notice !== prev.notice) this.showToast(state.notice.text, state.notice.kind);
   }
@@ -491,6 +517,7 @@ export class HomeUI {
   private openPanel(panel: Exclude<Panel, null>): void {
     this.panel = panel;
     if (panel === 'controllers') this.ctrlPanel.open();
+    if (panel === 'wifi') this.wifiPanel.open();
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -505,6 +532,7 @@ export class HomeUI {
   private closePanel(): void {
     if (!this.panel) return;
     if (this.panel === 'controllers') this.ctrlPanel.close();
+    if (this.panel === 'wifi') this.wifiPanel.close();
     this.panel = null;
     this.el.backdrop.hidden = true;
     this.sounds.back();
@@ -571,6 +599,7 @@ export class HomeUI {
         <h2>${icons.save} Dados salvos</h2>
         ${body}
         <p class="muted">O progresso fica guardado no console, não no cartucho. Apagar não tem volta.</p>`;
+      this.el.panel.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
       this.el.panel.querySelectorAll<HTMLElement>('.save-list li').forEach((li) =>
         li.addEventListener('click', (e) => {
           const index = Number(li.dataset.index);
@@ -588,6 +617,9 @@ export class HomeUI {
     } else if (this.panel === 'controllers') {
       this.ctrlPanel.render(this.el.panel);
       this.renderHints();
+    } else if (this.panel === 'wifi') {
+      this.wifiPanel.render(this.el.panel);
+      this.renderHints();
     } else if (this.panel === 'settings') {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
@@ -595,6 +627,7 @@ export class HomeUI {
         <dl class="info">
           <dt>Versão</dt><dd>Playzin ${VERSION}</dd>
           <dt>Sistema</dt><dd>${this.connected ? 'Conectado' : 'Desconectado'}</dd>
+          <dt>Rede</dt><dd>${networkLabel(this.store.get().wifi)}</dd>
           <dt>Cartucho</dt><dd>${cartridge ? `${escapeHtml(cartridge.manifest.name)} v${escapeHtml(cartridge.manifest.version)}` : 'Nenhum'}</dd>
           <dt>Jogos na lista</dt><dd>${this.library.list().length}</dd>
           <dt>Resolução</dt><dd>${window.innerWidth}×${window.innerHeight}</dd>
@@ -606,8 +639,19 @@ export class HomeUI {
 
   private renderStatus(): void {
     const { status } = this.store.get();
-    this.el.net.innerHTML = this.connected ? icons.wifi : icons.wifiOff;
+    // Ícone da barra superior: sinal do Wi-Fi do console. Sem conexão com o sistema, fica vermelho.
+    const wifi = this.store.get().wifi;
+    if (!this.connected) {
+      this.el.net.innerHTML = icons.wifiOff;
+      this.el.net.title = 'Sem conexão com o sistema';
+    } else if (wifi?.available) {
+      this.el.net.innerHTML = wifi.current ? signalIcon(wifi.current.signal) : icons.wifiOff;
+      this.el.net.title = wifi.current ? `Wi-Fi: ${wifi.current.ssid}` : 'Sem Wi-Fi';
+    } else {
+      this.el.net.innerHTML = ''; // no PC, a internet é do próprio computador
+    }
     this.el.net.classList.toggle('off', !this.connected);
+    this.el.net.classList.toggle('muted-icon', this.connected && Boolean(wifi?.available) && !wifi?.current);
     const bt = this.store.get().bluetooth;
     this.el.connState.textContent =
       !this.connected || status === 'connecting'
@@ -622,6 +666,8 @@ export class HomeUI {
     let html = '';
     if (this.panel === 'controllers') {
       html = this.ctrlPanel.hints(hint);
+    } else if (this.panel === 'wifi') {
+      html = this.wifiPanel.hints(hint);
     } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel) {
@@ -662,7 +708,17 @@ export class HomeUI {
     if (!this.active) return;
     this.input.update();
     if (++this.frame % 30 === 0) this.updatePads();
+    // Teclado virtual aberto: ele recebe todo o input até fechar.
+    if (this.keyboard.isOpen) return this.keyboard.update();
 
+    if (this.panel === 'wifi') {
+      const result = this.wifiPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
     if (this.panel === 'controllers') {
       const result = this.ctrlPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
@@ -750,6 +806,12 @@ function generatedArt(id: string, name: string): HTMLElement {
     .join('');
   div.innerHTML = `<span class="initials">${escapeHtml(initials)}</span><span class="art-name">${escapeHtml(name)}</span>`;
   return div;
+}
+
+function networkLabel(wifi: import('@playzin/shared').WifiState | null): string {
+  if (!wifi?.available) return 'Internet do computador';
+  if (!wifi.current) return 'Sem Wi-Fi';
+  return `${escapeHtml(wifi.current.ssid)}${wifi.current.ip ? ` · ${escapeHtml(wifi.current.ip)}` : ''}`;
 }
 
 function formatDate(iso: string): string {
