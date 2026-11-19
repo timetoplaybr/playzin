@@ -51,6 +51,9 @@ Para os seus jogos, use o comando `playzin` dentro da pasta de cada um (próxima
 
 ### A tela inicial
 
+Ao ligar, o console mostra uma abertura de uns 3 segundos: um cartucho encaixa na fenda, o nome
+Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou clique pula a abertura.
+
 - **Fileira de jogos:** o cartucho inserido aparece primeiro; os jogos que já passaram pelo
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
 - **Perfil:** o avatar no canto superior esquerdo mostra quem está jogando; suba até ele (ou clique)

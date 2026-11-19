@@ -1,10 +1,11 @@
-import { getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
+import { ACTIONS, getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
 import type { BluetoothDevice, CartridgeInfo, Profile, SaveSummary } from '@playzin/shared';
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
 import { ControllersPanel } from './controllers-panel';
 import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
+import { BootSplash } from './boot-splash';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
@@ -20,6 +21,7 @@ const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
 const VERSION = '0.3.0';
 /** Último perfil escolhido (fica no navegador do console, junto com as outras chaves do launcher). */
+const SKIP_ACTIONS = ACTIONS;
 const LAST_PROFILE_KEY = 'playzin:launcher:last-profile';
 
 type Tile =
@@ -86,6 +88,8 @@ export class HomeUI {
   private readonly wifiPanel: WifiPanel;
   private readonly keyboard: VirtualKeyboard;
   private readonly profileScreen: ProfileScreen;
+  /** Abertura ao ligar (some sozinha, ou com qualquer botão). */
+  private readonly splash: BootSplash;
   private sysButtons: SystemButton[] = [];
   private sysSignature = '';
   /** Painel "Dados salvos": lista carregada do console, item selecionado e confirmação de apagar. */
@@ -165,6 +169,7 @@ export class HomeUI {
       },
     });
     this.keyboard = new VirtualKeyboard(root, sounds);
+    this.splash = new BootSplash(root, sounds);
     this.wifiPanel = new WifiPanel({
       store,
       sounds,
@@ -808,6 +813,11 @@ export class HomeUI {
     if (!this.active) return;
     this.input.update();
     if (++this.frame % 30 === 0) this.updatePads();
+    // Abertura na tela: qualquer botão pula, e o aperto não vaza para o menu.
+    if (this.splash.isOpen) {
+      if (SKIP_ACTIONS.some((a) => this.input.justPressed(a))) this.splash.skip();
+      return;
+    }
     // Teclado virtual aberto: ele recebe todo o input até fechar.
     if (this.keyboard.isOpen) return this.keyboard.update();
     if (this.profileScreen.isOpen) {

@@ -56,6 +56,23 @@ export class Sounds {
     this.tone(1318.5, 0.25, 'triangle', 0.35, 0.14);
   }
 
+  /** Abertura: o cartucho encaixando na fenda. */
+  bootClick(): void {
+    this.click(0, 0.7);
+    this.click(0.045, 0.45);
+    this.tone(110, 0.12, 'sine', 0.5);
+  }
+
+  /** Abertura: acorde de boas-vindas subindo e brilhando. */
+  bootChime(): void {
+    const notes = [523.25, 659.25, 783.99, 1046.5]; // dó, mi, sol, dó
+    notes.forEach((f, i) => {
+      this.tone(f, 0.5 - i * 0.05, 'sine', 0.38, i * 0.085);
+      this.tone(f * 2, 0.25, 'triangle', 0.08, i * 0.085);
+    });
+    this.tone(1567.98, 0.9, 'sine', 0.22, 0.36); // brilho final
+  }
+
   private ensure(): AudioContext | undefined {
     try {
       if (!this.ctx) {
