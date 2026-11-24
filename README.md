@@ -265,6 +265,8 @@ Só `localStorage` é coberto: dados em IndexedDB ou cookies continuam apenas no
 
 ## Instalando no Raspberry Pi
 
+Guia completo, passo a passo a partir do Windows: [docs/raspberry-pi.md](docs/raspberry-pi.md).
+
 1. Grave o **Raspberry Pi OS Lite (64-bit)** no cartão SD (Raspberry Pi Imager; já configure
    Wi-Fi, usuário e SSH por lá).
 2. Copie este projeto para o Pi (ex.: `scp -r playzin pi@raspberrypi.local:~`) ou clone do git.
