@@ -20,7 +20,10 @@ const stage = document.getElementById('home') as HTMLElement;
 // ---- Palco fixo de 1280x720, escalado para caber em qualquer TV/monitor ----
 function fitStage(): void {
   const scale = Math.min(window.innerWidth / STAGE_WIDTH, window.innerHeight / STAGE_HEIGHT);
-  stage.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  // A tela inicial e o menu rápido (por cima do jogo) usam o mesmo palco de 1280x720.
+  for (const el of document.querySelectorAll<HTMLElement>('#home, .qm-stage')) {
+    el.style.transform = `translate(-50%, -50%) scale(${scale})`;
+  }
 }
 window.addEventListener('resize', fitStage);
 fitStage();
@@ -33,7 +36,8 @@ const frame = new GameFrame(() => {
   sounds.back();
   const { cartridge } = store.get();
   store.update({ status: cartridge ? 'ready' : 'empty' });
-});
+}, sounds);
+fitStage(); // o menu rápido acabou de entrar na página
 
 function play(cartridge: CartridgeInfo): void {
   if (frame.isOpen) return;
@@ -42,7 +46,7 @@ function play(cartridge: CartridgeInfo): void {
   if (!profile) return home.openProfiles();
   store.update({ status: 'playing' });
   home.setActive(false);
-  frame.open(cartridge, profile.id);
+  frame.open(cartridge, profile);
 }
 
 function stopPlaying(): void {

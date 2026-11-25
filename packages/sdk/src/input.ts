@@ -5,6 +5,8 @@
  * Não depende do Phaser: chame input.update() uma vez por frame (ex.: no update() da cena).
  */
 
+import { isPausedByLauncher } from './launcher-state.js';
+
 export type Action = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'action' | 'special' | 'pause';
 
 export const ACTIONS: readonly Action[] = ['up', 'down', 'left', 'right', 'confirm', 'back', 'action', 'special', 'pause'];
@@ -124,6 +126,15 @@ export class PlayerInput {
     this.previous = this.current;
     this.current = new Set();
     this.stick = { x: 0, y: 0 };
+    this.tapped = new Set();
+
+    // Menu rápido do console aberto: o jogo não vê nada. Ao voltar, o que ainda estiver
+    // apertado (ex.: o A de "Continuar") não conta como "acabou de apertar".
+    if (isPausedByLauncher()) {
+      this.previous = new Set();
+      this.primed = false;
+      return;
+    }
 
     // Toque rápido (apertou e soltou entre dois frames) ainda conta como "apertou".
     const tapped = new Set<Action>();

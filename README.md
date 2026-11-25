@@ -65,13 +65,27 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
   No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
 - Navegue com direcional/setas, mouse (clique seleciona, segundo clique abre) ou controle.
 
+### O menu rápido
+
+Durante o jogo, o botão Xbox/PS (ou View + Menu, ou Esc segurados por 1 s) abre um menu por
+cima do jogo, com o nome e a capa do jogo, quem está jogando, há quanto tempo e quantos
+controles estão ligados:
+
+- **Continuar:** volta para o jogo (também com B, Esc ou o botão Xbox de novo);
+- **Reiniciar jogo:** grava os saves e recarrega o jogo do começo (A duas vezes);
+- **Sair do jogo:** volta para a tela inicial (A duas vezes).
+
+Enquanto o menu está aberto, o jogo fica pausado: jogos com o SDK recebem um aviso de pausa e
+o `PlayerInput` não enxerga os botões usados no menu. Nos jogos sem o SDK, o console pausa os
+`<audio>`/`<video>` da página e tira o teclado do jogo, mas o jogo em si continua rodando.
+
 | Ação | Teclado | Controle |
 |---|---|---|
 | Navegar | setas / WASD | direcional ou analógico |
 | Jogar / OK | Enter / Espaço | A |
 | Voltar / fechar painel | Backspace | B |
 | Remover jogo da lista / editar perfil | L | X |
-| Voltar ao menu (durante o jogo) | segurar Esc por 1 s | botão Xbox, ou View + Menu por 1 s |
+| Menu rápido (durante o jogo) | segurar Esc por 1 s | botão Xbox/PS, ou View + Menu por 1 s |
 
 ### Desenvolvendo o launcher com hot reload
 
@@ -141,7 +155,7 @@ mesmo assim). Pastas de projeto, a pasta pessoal e a unidade do sistema nunca s�
 ### SDK (opcional, recomendado)
 
 ```ts
-import { PlayerInput, createSaveStore, ready, exitToMenu, isInsidePlayzin } from 'playzin/sdk';
+import { PlayerInput, createSaveStore, ready, exitToMenu, isInsidePlayzin, onLauncherMessage } from 'playzin/sdk';
 
 const controls = new PlayerInput({ player: 0 });   // teclado + 1º controle
 const saves = createSaveStore('chapelao');
@@ -154,10 +168,15 @@ const { x } = controls.getMove();                   // -1..1, analógico ou dire
 saves.set('fase', 3);
 ready();                                            // terminou de carregar (tira o "Carregando…")
 if (isInsidePlayzin()) mostrarOpcao('VOLTAR AO CONSOLE', exitToMenu);
+
+// menu rápido do console aberto/fechado: pare relógios, música, inimigos...
+onLauncherMessage((tipo) => (tipo === 'pause' ? pausarJogo() : retomarJogo()));
 ```
 
 Ações: `up`, `down`, `left`, `right`, `confirm` (A), `back` (B), `action` (X), `special` (Y), `pause` (Menu).
 Fora do console, `ready()` e `exitToMenu()` não fazem nada: o jogo continua rodando normalmente no navegador.
+Com o menu rápido aberto, o `PlayerInput` não registra nada (e o botão usado para fechar o menu não
+vaza para o jogo); `isPausedByLauncher()` diz se o menu está aberto agora.
 O `mozin-e-mozinzin-the-game` é um exemplo completo de jogo integrado.
 
 ## Controles Bluetooth
@@ -317,6 +336,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [x] Daemon: detecção por pastas (dev, Mac `/Volumes`) e por UDisks2 (Pi), validação do manifesto, servidor de arquivos protegido, WebSocket
 - [x] Tela inicial estilo console: fileira de jogos com histórico, ícones de sistema, painéis, sons, mouse/teclado/controle
 - [x] SDK: input unificado teclado/controle, saves por jogo, `ready()` / `exitToMenu()`
+- [x] Menu rápido durante o jogo (continuar, reiniciar, sair), com pausa avisada ao jogo
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)
 - [x] Comando `playzin` (init, build, check, insert, eject, pack) e SDK em `playzin/sdk`
 - [x] Pareamento Bluetooth pela tela do console (com pareamento automático e Bluetooth simulado)

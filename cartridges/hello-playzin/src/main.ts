@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { createSaveStore, exitToMenu, isInsidePlayzin, PlayerInput, ready } from 'playzin/sdk';
+import { createSaveStore, exitToMenu, isInsidePlayzin, onLauncherMessage, PlayerInput, ready } from 'playzin/sdk';
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -11,6 +11,7 @@ const saves = createSaveStore(GAME_ID);
  * - PlayerInput: mesmo código para teclado e controle
  * - createSaveStore: recorde salvo por jogo
  * - ready() e exitToMenu(): conversa com o launcher
+ * - onLauncherMessage(): pausa o relógio enquanto o menu rápido do console está aberto
  */
 class PlayScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Rectangle;
@@ -59,6 +60,10 @@ class PlayScene extends Phaser.Scene {
         if (this.timeLeft <= 0) this.finish();
       },
     });
+
+    // Menu rápido aberto (botão Xbox / Esc segurado): o relógio da partida para.
+    const stop = onLauncherMessage((type) => (this.time.paused = type === 'pause'));
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stop);
 
     ready(); // avisa o launcher que pode tirar a tela de "carregando"
   }

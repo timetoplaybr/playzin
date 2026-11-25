@@ -27,6 +27,7 @@ export const icons = {
   clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   refresh: svg('<path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/>'),
   wifi1: svg('<path class="arc a3" d="M2 8.5a15 15 0 0 1 20 0"/><path class="arc a2" d="M5 12a10 10 0 0 1 14 0"/><path class="arc a1" d="M8.5 15.5a5 5 0 0 1 7 0"/><circle cx="12" cy="19" r="1" fill="currentColor"/>'),
+  play: svg('<path d="M7 4.5v15l12-7.5z"/>'),
   insert: svg('<path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M5 17v3h14v-3"/>'),
 };
 

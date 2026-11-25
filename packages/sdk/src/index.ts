@@ -1,6 +1,7 @@
-import type { GameToLauncherMessage, LauncherToGameMessage } from '@playzin/shared';
+import type { GameToLauncherMessage } from '@playzin/shared';
 
 export * from './input.js';
+export { isPausedByLauncher, onLauncherMessage } from './launcher-state.js';
 export type { CartridgeManifest } from '@playzin/shared';
 
 /**
@@ -30,17 +31,6 @@ export function ready(): void {
 /** Volta para o menu do console. Fora do Playzin, não faz nada. */
 export function exitToMenu(): void {
   postToLauncher('exit');
-}
-
-/** Pausa/retoma pedidos pelo launcher (ex.: botão Xbox apertado). */
-export function onLauncherMessage(handler: (type: LauncherToGameMessage['type']) => void): () => void {
-  const listener = (event: MessageEvent) => {
-    if (event.origin !== window.location.origin) return;
-    const data = event.data as Partial<LauncherToGameMessage> | undefined;
-    if (data?.source === 'playzin-launcher' && data.type) handler(data.type);
-  };
-  window.addEventListener('message', listener);
-  return () => window.removeEventListener('message', listener);
 }
 
 /**
