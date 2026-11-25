@@ -138,6 +138,9 @@ São os itens que o README ainda marca como não testados no hardware:
 5. **Desligar e reiniciar** pelo ícone Desligar da tela inicial: a TV fica sem sinal (desligar)
    ou o console volta sozinho para o menu (reiniciar). Se aparecer um aviso de permissão,
    confira se existe `/etc/polkit-1/rules.d/50-playzin-power.rules`.
+6. **Bateria dos controles:** com o controle ligado, Controles mostra a porcentagem. Se não
+   aparecer, veja o que o sistema enxerga: `ls /sys/class/power_supply/` e
+   `busctl tree org.bluez | grep -i battery`.
 
 **Não ligue o Overlay File System** (o modo somente leitura) por enquanto: com ele ativo, os saves
 se perdem a cada reboot.

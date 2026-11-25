@@ -12,6 +12,7 @@ import { PowerScreen } from './power-screen';
 import { applyTheme, restoreTheme, setProfileTheme } from './theme';
 import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
+import { batteryIcon, connectedPads, isLow } from './battery';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
 
@@ -377,6 +378,11 @@ export class HomeUI {
       : `<div class="avatar">${icons.user}</div><span class="profile-name"></span>`;
   }
 
+  /** Aviso na tela inicial (o launcher usa para a bateria fraca). */
+  notify(text: string, kind: 'info' | 'error' = 'info'): void {
+    this.showToast(text, kind);
+  }
+
   showError(text: string): void {
     this.sounds.error();
     this.showToast(text, 'error');
@@ -415,7 +421,7 @@ export class HomeUI {
       if (this.panel === 'saves' && state.profileId !== prev.profileId) void this.loadSaves();
       if (this.panel === 'settings') this.renderPanel();
     }
-    if (state.bluetooth !== prev.bluetooth && this.panel === 'controllers') this.renderPanel();
+    if (state.bluetooth !== prev.bluetooth) this.updatePads();
     if (state.wifi !== prev.wifi && this.panel === 'wifi') this.renderPanel();
     if (state.power !== prev.power && this.panel === 'power') this.renderPanel();
 
@@ -889,7 +895,18 @@ export class HomeUI {
 
   private updatePads(): void {
     const count = getConnectedGamepads().length;
-    this.el.pads.innerHTML = count > 0 ? `${icons.gamepad}<b>${count}</b>` : '';
+    // Bateria de cada controle Bluetooth ligado (os que informam), ao lado da contagem.
+    const batteries = connectedPads(this.store.get().bluetooth)
+      .filter((d) => d.battery !== null)
+      .slice(0, 4)
+      .map(
+        (d) =>
+          `<span class="pad-battery${isLow(d) ? ' low' : ''}" title="${escapeHtml(d.name)}: ${d.battery}%">` +
+          `${batteryIcon(d.battery!, d.charging)}</span>`,
+      )
+      .join('');
+    const html = count > 0 ? `${icons.gamepad}<b>${count}</b>${batteries}` : batteries;
+    if (this.el.pads.innerHTML !== html) this.el.pads.innerHTML = html;
     if (this.panel === 'controllers') this.renderPanel();
   }
 

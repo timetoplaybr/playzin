@@ -158,7 +158,7 @@ mesmo assim). Pastas de projeto, a pasta pessoal e a unidade do sistema nunca s�
 ```ts
 import { PlayerInput, createSaveStore, ready, exitToMenu, isInsidePlayzin, onLauncherMessage } from 'playzin/sdk';
 
-const controls = new PlayerInput({ player: 0 });   // teclado + 1º controle
+const controls = new PlayerInput({ player: 0 });   // teclado + controle do Jogador 1
 const saves = createSaveStore('chapelao');
 
 // no update() da cena:
@@ -175,6 +175,9 @@ onLauncherMessage((tipo) => (tipo === 'pause' ? pausarJogo() : retomarJogo()));
 ```
 
 Ações: `up`, `down`, `left`, `right`, `confirm` (A), `back` (B), `action` (X), `special` (Y), `pause` (Menu).
+`player` segue a ordem escolhida em Controles → Mudar a ordem dos jogadores (sem ordem, a ordem em
+que os controles conectaram). Para ler os controles direto: `getPlayerGamepads()` (`[0]` é o
+Jogador 1; quem desligou o controle fica `undefined`, sem empurrar os outros) e `getPlayerGamepad(n)`.
 Fora do console, `ready()` e `exitToMenu()` não fazem nada: o jogo continua rodando normalmente no navegador.
 Com o menu rápido aberto, o `PlayerInput` não registra nada (e o botão usado para fechar o menu não
 vaza para o jogo); `isPausedByLauncher()` diz se o menu está aberto agora.
@@ -190,6 +193,19 @@ O pareamento é feito pela tela do console, sem terminal: **Controles → Adicio
 
 Em Controles também dá para **esquecer** um controle (X duas vezes). A lista mostra só controles,
 teclados e mouses (fones e caixas de som ficam de fora).
+
+**Ordem dos jogadores:** em Controles → **Mudar a ordem dos jogadores**, cada pessoa aperta **A**
+no próprio controle, na ordem (o primeiro vira o Jogador 1, e assim por diante, até 4). O controle
+vibra ao ganhar o número, e a tela fecha sozinha quando todos os controles ligados escolheram
+(**Menu ☰** ou Enter concluem antes; **B** cancela). A ordem vale até o console desligar. Se o
+controle de um jogador desligar, os outros continuam com o mesmo número. Jogos feitos com o SDK
+seguem esta ordem; jogos que leem a Gamepad API direto usam a ordem de conexão.
+
+**Bateria:** a barra de cima mostra a bateria de cada controle Bluetooth ligado, e Controles mostra
+a porcentagem de cada um. Com 15% ou menos, o console avisa uma vez (inclusive por cima do jogo).
+A carga vem do BlueZ (`org.bluez.Battery1`) ou, quando ele não informa, do kernel
+(`/sys/class/power_supply`: DualSense/DualShock, Xbox com o xpadneo, Joy-Con). Controles que não
+informam a bateria (vários 8BitDo, por exemplo) aparecem sem ela.
 
 **O primeiro controle:** para navegar até "Adicionar controle" é preciso algum controle. Se o
 console ligar sem nenhum controle pareado, ele entra em **pareamento automático** por 5 minutos:
@@ -242,7 +258,9 @@ Para usá-las e testá-las, há versões simuladas:
 npm run start:simulado
 ```
 
-- Bluetooth: quatro aparelhos aparecem na busca; o 8BitDo falha na primeira tentativa.
+- Bluetooth: quatro aparelhos aparecem na busca; o 8BitDo falha na primeira tentativa. Bateria:
+  o Xbox tem 80%, o DualSense começa em 16% e perde 1% a cada 20 s (para ver o aviso de bateria
+  fraca), o 8BitDo não informa.
 - Wi-Fi: começa conectado em "Casa do Diego"; a senha das redes protegidas é `playzin123`
   (qualquer outra dá "senha incorreta"); "Cafeteria Livre" é aberta.
 
@@ -355,6 +373,8 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] SDK: input unificado teclado/controle, saves por jogo, `ready()` / `exitToMenu()`
 - [x] Menu rápido durante o jogo (continuar, reiniciar, sair), com pausa avisada ao jogo
 - [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
+- [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
+- [ ] Testar a bateria de verdade (BlueZ Battery1 e /sys/class/power_supply) no Raspberry Pi
 - [ ] Testar o desligar/reiniciar de verdade (logind + polkit) no Raspberry Pi
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)
 - [x] Comando `playzin` (init, build, check, insert, eject, pack) e SDK em `playzin/sdk`

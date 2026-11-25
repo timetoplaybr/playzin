@@ -4,6 +4,8 @@ import { GameFrame } from './game-frame';
 import { Library } from './library';
 import { ConsoleStore } from './store';
 import { HomeUI, STAGE_HEIGHT, STAGE_WIDTH } from './ui/home';
+import { LowBatteryWatcher } from './ui/battery';
+import { GameToast } from './ui/game-toast';
 import { Sounds } from './ui/sounds';
 import { restoreTheme } from './ui/theme';
 import './style.css';
@@ -58,6 +60,16 @@ function stopPlaying(): void {
 
 const home = new HomeUI(stage, store, library, sounds, { play });
 
+// ---- Bateria fraca: avisa no menu ou por cima do jogo ----
+const gameToast = new GameToast();
+fitStage(); // o aviso por cima do jogo usa o mesmo palco escalado
+const lowBattery = new LowBatteryWatcher((device) => {
+  const text = `Bateria fraca: ${device.name} (${device.battery}%)`;
+  sounds.error();
+  if (frame.isOpen) gameToast.show(text);
+  else home.notify(text, 'error');
+});
+
 // ---- Eventos do daemon ----
 connection.onStatus((connected) => {
   home.setConnected(connected);
@@ -104,6 +116,7 @@ connection.onMessage((msg) => {
       break;
     case 'bluetooth':
       store.update({ bluetooth: msg.state });
+      lowBattery.update(msg.state);
       break;
     case 'bluetooth-paired':
       home.onBluetoothPaired(msg.device, msg.auto);

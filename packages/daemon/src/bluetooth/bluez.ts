@@ -1,3 +1,4 @@
+import { readHidBatteries, type HidBattery } from './battery-sysfs.js';
 import { BluetoothBackend, BluetoothError, guessKind, type RawDevice } from './types.js';
 
 /**
@@ -6,6 +7,8 @@ import { BluetoothBackend, BluetoothError, guessKind, type RawDevice } from './t
  * - Registra um "agente" sem PIN (NoInputNoOutput): controles pareiam no modo "Just Works",
  *   sem ninguém precisar digitar nada.
  * - Parear = Pair() + Trusted=true (para reconectar sozinho ao ligar o controle) + Connect().
+ * - Bateria: org.bluez.Battery1 (controles BLE) ou, se não houver, a do kernel
+ *   (/sys/class/power_supply: DualSense, xpadneo...), lida a cada 30 s.
  * - Precisa do serviço bluetooth rodando e de o usuário do daemon estar no grupo "bluetooth"
  *   (o scripts/pi/setup.sh já cuida disso).
  */
@@ -15,6 +18,8 @@ const OBJECT_MANAGER = 'org.freedesktop.DBus.ObjectManager';
 const PROPERTIES = 'org.freedesktop.DBus.Properties';
 const ADAPTER = 'org.bluez.Adapter1';
 const DEVICE = 'org.bluez.Device1';
+const BATTERY = 'org.bluez.Battery1';
+const BATTERY_POLL_MS = 30_000;
 const AGENT_MANAGER = 'org.bluez.AgentManager1';
 const AGENT_PATH = '/playzin/agent';
 const PAIR_TIMEOUT_MS = 40_000;
@@ -27,6 +32,8 @@ type VariantMap = Record<string, { value: any }>;
 interface DeviceEntry {
   path: string;
   props: Record<string, any>;
+  /** Percentage do org.bluez.Battery1, quando o aparelho tem. */
+  battery?: number;
   unsubscribe?: () => void;
 }
 
@@ -39,6 +46,9 @@ export class BluezBackend extends BluetoothBackend {
   private adapterProps: any;
   private discovering = false;
   private entries = new Map<string, DeviceEntry>(); // por caminho D-Bus
+  private hidBatteries = new Map<string, HidBattery>(); // por endereço
+  private batteryTimer: NodeJS.Timeout | undefined;
+  private batterySoon: NodeJS.Timeout | undefined;
 
   /** Testa se há um adaptador Bluetooth acessível pelo BlueZ. */
   static async isAvailable(): Promise<boolean> {
@@ -100,18 +110,26 @@ export class BluezBackend extends BluetoothBackend {
     await this.registerAgent();
 
     for (const [path, ifaces] of Object.entries(objects)) {
-      if (DEVICE in ifaces && path.startsWith(adapterPath + '/')) await this.addDevice(path, ifaces[DEVICE]);
+      if (DEVICE in ifaces && path.startsWith(adapterPath + '/')) await this.addDevice(path, ifaces[DEVICE], ifaces[BATTERY]);
     }
     om.on('InterfacesAdded', (path: string, ifaces: Record<string, VariantMap>) => {
-      if (DEVICE in ifaces && path.startsWith(this.adapterPath + '/')) void this.addDevice(path, ifaces[DEVICE]);
+      if (!path.startsWith(this.adapterPath + '/')) return;
+      if (DEVICE in ifaces) void this.addDevice(path, ifaces[DEVICE], ifaces[BATTERY]);
+      // A bateria costuma aparecer só depois que o controle conecta.
+      else if (BATTERY in ifaces) this.setBattery(path, ifaces[BATTERY].Percentage?.value);
     });
     om.on('InterfacesRemoved', (path: string, names: string[]) => {
       if (names.includes(DEVICE)) this.removeDevice(path);
+      else if (names.includes(BATTERY)) this.setBattery(path, undefined);
     });
+    await this.refreshHidBatteries();
+    this.batteryTimer = setInterval(() => void this.refreshHidBatteries(), BATTERY_POLL_MS);
     this.emit('changed');
   }
 
   async stop(): Promise<void> {
+    clearInterval(this.batteryTimer);
+    clearTimeout(this.batterySoon);
     try {
       if (this.discovering) await this.adapter?.StopDiscovery();
     } catch {
@@ -122,10 +140,14 @@ export class BluezBackend extends BluetoothBackend {
   }
 
   devices(): RawDevice[] {
-    return [...this.entries.values()].map(({ props }) => {
+    return [...this.entries.values()].map(({ props, battery }) => {
       const address = String(props.Address ?? '');
       const name = String(props.Alias ?? props.Name ?? address);
+      const connected = Boolean(props.Connected);
+      const hid = this.hidBatteries.get(address.toUpperCase());
       return {
+        battery: connected ? (battery ?? hid?.percent ?? null) : null,
+        charging: connected && Boolean(hid?.charging),
         address,
         name,
         kind: guessKind({ icon: props.Icon, cls: props.Class, appearance: props.Appearance, name: props.Name ?? props.Alias }),
@@ -210,23 +232,28 @@ export class BluezBackend extends BluetoothBackend {
     return undefined;
   }
 
-  private async addDevice(path: string, props: VariantMap): Promise<void> {
+  private async addDevice(path: string, props: VariantMap, battery?: VariantMap): Promise<void> {
     const existing = this.entries.get(path);
     const plain = unwrap(props);
+    const percent = battery?.Percentage?.value;
     if (existing) {
       Object.assign(existing.props, plain);
+      if (percent !== undefined) existing.battery = Number(percent);
       this.emit('changed');
       return;
     }
-    const entry: DeviceEntry = { path, props: plain };
+    const entry: DeviceEntry = { path, props: plain, battery: percent === undefined ? undefined : Number(percent) };
     this.entries.set(path, entry);
     try {
       const obj = await this.bus.getProxyObject(BLUEZ, path);
       const iface = obj.getInterface(PROPERTIES);
       const onChange = (name: string, changed: VariantMap, invalidated: string[]) => {
+        if (name === BATTERY && 'Percentage' in changed) return this.setBattery(path, changed.Percentage.value);
         if (name !== DEVICE) return;
         Object.assign(entry.props, unwrap(changed));
         for (const key of invalidated ?? []) delete entry.props[key];
+        // Controle acabou de ligar: a bateria do kernel aparece em seguida.
+        if ('Connected' in changed) this.refreshHidBatteriesSoon();
         this.emit('changed');
       };
       iface.on('PropertiesChanged', onChange);
@@ -235,6 +262,25 @@ export class BluezBackend extends BluetoothBackend {
       /* o aparelho sumiu antes de conseguirmos escutar */
     }
     this.emit('changed');
+  }
+
+  private setBattery(path: string, percent: unknown): void {
+    const entry = this.entries.get(path);
+    if (!entry) return;
+    entry.battery = percent === undefined || percent === null ? undefined : Number(percent);
+    this.emit('changed');
+  }
+
+  private refreshHidBatteriesSoon(): void {
+    clearTimeout(this.batterySoon);
+    this.batterySoon = setTimeout(() => void this.refreshHidBatteries(), 3000);
+  }
+
+  private async refreshHidBatteries(): Promise<void> {
+    const next = await readHidBatteries();
+    const before = JSON.stringify([...this.hidBatteries]);
+    this.hidBatteries = next;
+    if (JSON.stringify([...next]) !== before) this.emit('changed');
   }
 
   private removeDevice(path: string): void {

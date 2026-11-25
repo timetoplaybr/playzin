@@ -8,6 +8,9 @@ export interface RawDevice {
   kind: BluetoothKind;
   paired: boolean;
   connected: boolean;
+  /** Carga, 0–100 (null = não informa). */
+  battery: number | null;
+  charging: boolean;
 }
 
 export interface BackendEvents {

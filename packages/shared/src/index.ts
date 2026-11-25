@@ -50,7 +50,14 @@ export interface BluetoothDevice {
   connected: boolean;
   /** O console está pareando este aparelho agora. */
   pairing: boolean;
+  /** Carga da bateria, 0–100 (null = o aparelho não informa, ou está desligado). */
+  battery: number | null;
+  /** Carregando agora (cabo USB), quando o aparelho informa. */
+  charging: boolean;
 }
+
+/** Bateria nesse nível ou abaixo: o console avisa. */
+export const LOW_BATTERY_PERCENT = 15;
 
 export interface BluetoothState {
   /** Há Bluetooth neste console? (No PC de desenvolvimento normalmente não.) */

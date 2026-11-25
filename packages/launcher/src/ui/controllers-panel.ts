@@ -1,6 +1,7 @@
-import { getConnectedGamepads, type Action } from '@playzin/sdk';
+import { GamepadButton, getConnectedGamepads, getPlayerGamepads, setPlayerOrder, type Action } from '@playzin/sdk';
 import type { BluetoothDevice, BluetoothState } from '@playzin/shared';
 import type { ConsoleStore } from '../store';
+import { batteryLabel, cleanPadName, deviceForPad } from './battery';
 import { icons } from './icons';
 import type { Sounds } from './sounds';
 
@@ -9,7 +10,24 @@ export interface PanelInput {
   repeatPressed(action: Action): boolean;
 }
 
-type MainItem = { type: 'add' } | { type: 'device'; device: BluetoothDevice };
+type MainItem = { type: 'order' } | { type: 'add' } | { type: 'device'; device: BluetoothDevice };
+
+/** Quantos jogadores a tela de ordem distribui (como nos consoles). */
+const MAX_PLAYERS = 4;
+/** Depois que todos os controles ligados escolheram, a tela fecha sozinha. */
+const ORDER_DONE_DELAY_MS = 900;
+const ORDER_BUTTONS = [GamepadButton.A, GamepadButton.B, GamepadButton.MENU] as const;
+
+interface OrderState {
+  /** Gamepad.index de cada jogador, na ordem em que apertaram A. */
+  slots: number[];
+  /** Botões A/B/Menu de cada controle no quadro anterior (para pegar só o aperto novo). */
+  prev: Map<number, boolean[]>;
+  /** Quando todos escolheram: a hora de fechar sozinha. */
+  doneAt: number | null;
+  /** Enter do teclado: concluir. */
+  keyConfirm: boolean;
+}
 
 interface Deps {
   store: ConsoleStore;
@@ -23,17 +41,24 @@ interface Deps {
  * Painel "Controles": o que está conectado agora e, no console com Bluetooth,
  * os controles pareados + "Adicionar controle" (busca e pareamento).
  *
- *   main → lista de pareados (X duas vezes = esquecer) e o botão Adicionar controle
- *   scan → aparelhos encontrados por perto (A = parear, B = voltar)
+ *   main  → jogadores agora, "Mudar a ordem dos jogadores", pareados (X duas vezes = esquecer)
+ *           e o botão Adicionar controle
+ *   scan  → aparelhos encontrados por perto (A = parear, B = voltar)
+ *   order → cada jogador aperta A no seu controle, na ordem (Menu ou Enter conclui, B cancela)
  */
 export class ControllersPanel {
-  private view: 'main' | 'scan' = 'main';
+  private view: 'main' | 'scan' | 'order' = 'main';
+  private order: OrderState | null = null;
   private index = 0;
   private confirmForget: string | null = null;
   /** Controle recém-pareado que deve ganhar a seleção assim que aparecer na lista. */
   private focusAddress: string | null = null;
 
-  constructor(private readonly deps: Deps) {}
+  constructor(private readonly deps: Deps) {
+    window.addEventListener('keydown', (e) => {
+      if (this.order && (e.code === 'Enter' || e.code === 'NumpadEnter')) this.order.keyConfirm = true;
+    });
+  }
 
   open(): void {
     this.view = 'main';
@@ -45,6 +70,7 @@ export class ControllersPanel {
   close(): void {
     if (this.view === 'scan') void this.setScan(false);
     this.view = 'main';
+    this.order = null;
   }
 
   /** Um controle acabou de ser pareado (pela tela ou pelo pareamento automático). */
@@ -67,9 +93,10 @@ export class ControllersPanel {
   }
 
   private mainItems(): MainItem[] {
+    const items: MainItem[] = [{ type: 'order' }];
     const bt = this.bt();
-    if (!bt?.available) return [];
-    return [{ type: 'add' }, ...bt.devices.filter((d) => d.paired).map((device) => ({ type: 'device' as const, device }))];
+    if (!bt?.available) return items;
+    return [...items, { type: 'add' }, ...bt.devices.filter((d) => d.paired).map((device) => ({ type: 'device' as const, device }))];
   }
 
   private found(): BluetoothDevice[] {
@@ -83,6 +110,11 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- input
 
   handleInput(input: PanelInput): 'close' | void {
+    if (this.view === 'order') {
+      // Backspace (ou o B do Jogador 1) cancela; o resto vem direto de cada controle.
+      if (input.justPressed('back')) return this.finishOrder(false);
+      return this.pollOrder();
+    }
     if (input.justPressed('back')) {
       if (this.view === 'scan') {
         this.view = 'main';
@@ -111,6 +143,7 @@ export class ControllersPanel {
   private activate(): void {
     if (this.view === 'main') {
       const item = this.mainItems()[this.index];
+      if (item?.type === 'order') return this.startOrder();
       if (item?.type === 'add') {
         this.view = 'scan';
         this.index = 0;
@@ -122,6 +155,67 @@ export class ControllersPanel {
     }
     const device = this.found()[this.index];
     if (device) void this.pair(device);
+  }
+
+  // ---------------------------------------------------------------- ordem dos jogadores
+
+  private startOrder(): void {
+    const pads = getConnectedGamepads();
+    if (pads.length === 0) {
+      this.deps.sounds.error();
+      this.deps.toast('Ligue um controle primeiro', 'error');
+      return;
+    }
+    // O A usado para abrir esta tela ainda está apertado: só conta o próximo aperto.
+    const prev = new Map(pads.map((p) => [p.index, ORDER_BUTTONS.map((b) => Boolean(p.buttons[b]?.pressed))]));
+    this.order = { slots: [], prev, doneAt: null, keyConfirm: false };
+    this.view = 'order';
+    this.deps.sounds.select();
+    this.deps.rerender();
+  }
+
+  private pollOrder(): void {
+    const order = this.order;
+    if (!order) return;
+    if (order.keyConfirm) return this.finishOrder(true);
+    if (order.doneAt !== null) {
+      if (performance.now() >= order.doneAt) this.finishOrder(true);
+      return;
+    }
+    const pads = getConnectedGamepads();
+    for (const pad of pads) {
+      const now = ORDER_BUTTONS.map((b) => Boolean(pad.buttons[b]?.pressed));
+      // Controle que apareceu agora (o navegador só mostra depois do primeiro botão): esse aperto vale.
+      const before = order.prev.get(pad.index) ?? [false, false, false];
+      order.prev.set(pad.index, now);
+      const pressed = (i: number) => now[i] && !before[i];
+      if (pressed(1)) return this.finishOrder(false);
+      if (pressed(2)) return this.finishOrder(true);
+      if (pressed(0) && !order.slots.includes(pad.index) && order.slots.length < MAX_PLAYERS) {
+        order.slots.push(pad.index);
+        this.deps.sounds.select();
+        rumble(pad);
+        const everyone = pads.every((p) => order.slots.includes(p.index));
+        if (everyone || order.slots.length === MAX_PLAYERS) order.doneAt = performance.now() + ORDER_DONE_DELAY_MS;
+        this.deps.rerender();
+      }
+    }
+  }
+
+  private finishOrder(save: boolean): void {
+    const order = this.order;
+    if (!order) return;
+    this.order = null;
+    this.view = 'main';
+    if (save && order.slots.length > 0) {
+      setPlayerOrder(order.slots);
+      this.deps.sounds.insert();
+      const n = order.slots.length;
+      this.deps.toast(n === 1 ? 'Pronto: Jogador 1 definido' : `Pronto: ordem de ${n} jogadores definida`);
+    } else {
+      this.deps.sounds.back();
+    }
+    this.deps.rerender();
   }
 
   private async pair(device: BluetoothDevice): Promise<void> {
@@ -182,8 +276,10 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- desenho
 
   hints(hint: (glyph: string, label: string) => string): string {
+    if (this.view === 'order') return hint('A', 'No seu controle: entrar') + hint('☰', 'Concluir') + hint('B', 'Cancelar');
     if (this.view === 'scan') return (this.found().length ? hint('A', 'Parear') : '') + hint('B', 'Voltar');
     const item = this.mainItems()[this.index];
+    if (item?.type === 'order') return hint('A', 'Mudar ordem') + hint('B', 'Voltar');
     if (item?.type === 'add') return hint('A', 'Adicionar') + hint('B', 'Voltar');
     if (item?.type === 'device') return hint('X', 'Esquecer') + hint('B', 'Voltar');
     return hint('B', 'Voltar');
@@ -198,7 +294,7 @@ export class ControllersPanel {
       }
     }
     this.index = Math.max(0, Math.min(this.index, Math.max(0, this.count() - 1)));
-    el.innerHTML = this.view === 'scan' ? this.renderScan() : this.renderMain();
+    el.innerHTML = this.view === 'scan' ? this.renderScan() : this.view === 'order' ? this.renderOrder() : this.renderMain();
     // Lista maior que o painel: mantém o item selecionado à vista.
     el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
     el.querySelectorAll<HTMLElement>('[data-index]').forEach((node) =>
@@ -224,16 +320,47 @@ export class ControllersPanel {
 
   private renderMain(): string {
     const bt = this.bt();
-    const pads = getConnectedGamepads();
-    const now = pads.length
-      ? pads
-          .map(
-            (p, i) =>
+    const players = getPlayerGamepads();
+    const now = players.length
+      ? players
+          .map((p, i) => {
+            if (!p) {
+              return `<li class="pad-row off"><span class="player-badge">P${i + 1}</span><span class="pad-name muted">Controle desligado</span></li>`;
+            }
+            const device = deviceForPad(p, bt);
+            return (
               `<li class="pad-row"><span class="player-badge">P${i + 1}</span><span class="pad-name">${escapeHtml(cleanPadName(p.id))}</span>` +
-              `<span class="pad-map">${p.mapping === 'standard' ? 'mapeamento padrão' : 'mapeamento genérico'}</span></li>`,
-          )
+              (device?.battery != null
+                ? batteryLabel(device)
+                : `<span class="pad-map">${p.mapping === 'standard' ? 'mapeamento padrão' : 'mapeamento genérico'}</span>`) +
+              `</li>`
+            );
+          })
           .join('')
       : `<li class="pad-row muted">Nenhum controle conectado agora. O teclado sempre funciona como jogador 1.</li>`;
+
+    const items = this.mainItems();
+    const itemHtml = (item: MainItem, i: number): string => {
+      const selected = i === this.index ? ' selected' : '';
+      if (item.type === 'order') {
+        return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.gamepad}</span><span class="save-name">Mudar a ordem dos jogadores</span></li>`;
+      }
+      if (item.type === 'add') {
+        return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.plus}</span><span class="save-name">Adicionar controle</span></li>`;
+      }
+      const d = item.device;
+      const confirming = this.confirmForget === d.address;
+      const meta = confirming
+        ? 'Aperte X de novo para esquecer'
+        : d.connected
+          ? `Conectado${d.battery !== null ? ` · ${batteryLabel(d)}` : ''}`
+          : 'Pareado · desligado';
+      return (
+        `<li class="${selected}${confirming ? ' confirming' : ''}" data-index="${i}">` +
+        `<span class="save-name">${kindIcon(d)} ${escapeHtml(d.name)}</span><span class="save-meta">${meta}</span>` +
+        `<button class="save-delete" title="Esquecer">${icons.trash}</button></li>`
+      );
+    };
 
     let bluetooth: string;
     if (!bt) {
@@ -242,31 +369,42 @@ export class ControllersPanel {
       bluetooth = `<p class="muted">Este computador não tem o Bluetooth do console. No Raspberry Pi, é aqui que você pareia os
         controles. Para testar esta tela no PC, ligue o console com <code>npm run start:simulado</code>.</p>`;
     } else {
-      const items = this.mainItems();
-      bluetooth = `<ul class="save-list">${items
-        .map((item, i) => {
-          const selected = i === this.index ? ' selected' : '';
-          if (item.type === 'add') {
-            return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.plus}</span><span class="save-name">Adicionar controle</span></li>`;
-          }
-          const d = item.device;
-          const confirming = this.confirmForget === d.address;
-          const meta = confirming ? 'Aperte X de novo para esquecer' : d.connected ? 'Conectado' : 'Pareado · desligado';
-          return (
-            `<li class="${selected}${confirming ? ' confirming' : ''}" data-index="${i}">` +
-            `<span class="save-name">${kindIcon(d)} ${escapeHtml(d.name)}</span><span class="save-meta">${meta}</span>` +
-            `<button class="save-delete" title="Esquecer">${icons.trash}</button></li>`
-          );
-        })
-        .join('')}</ul>`;
+      bluetooth = `<ul class="save-list">${items.slice(1).map((item, i) => itemHtml(item, i + 1)).join('')}</ul>`;
     }
 
     return `
       <h2>${icons.gamepad} Controles</h2>
-      <h3 class="section-title">Conectados agora</h3>
+      <h3 class="section-title">Jogadores</h3>
       <ul class="pad-list">${now}</ul>
+      <ul class="save-list order-entry">${itemHtml(items[0]!, 0)}</ul>
       <h3 class="section-title">Bluetooth${bt?.backend === 'mock' ? ' <span class="badge">simulado</span>' : ''}</h3>
       ${bluetooth}`;
+  }
+
+  private renderOrder(): string {
+    const order = this.order;
+    const pads = getConnectedGamepads();
+    const bt = this.bt();
+    const slots = Array.from({ length: MAX_PLAYERS }, (_, i) => {
+      const index = order?.slots[i];
+      const pad = index === undefined ? undefined : pads.find((p) => p.index === index);
+      const next = order !== null && order.doneAt === null && i === order.slots.length;
+      const device = pad ? deviceForPad(pad, bt) : undefined;
+      const label = pad ? escapeHtml(cleanPadName(pad.id)) : next ? 'Aperte A no seu controle' : '';
+      return (
+        `<li class="order-slot${pad ? ' filled' : ''}${next ? ' next' : ''}">` +
+        `<span class="player-badge">P${i + 1}</span><span class="pad-name">${label}</span>` +
+        (device?.battery != null ? batteryLabel(device) : '') +
+        `</li>`
+      );
+    }).join('');
+    const done = order?.doneAt !== null;
+    return `
+      <h2>${icons.gamepad} Ordem dos jogadores</h2>
+      <p class="muted">Cada pessoa aperta <b>A</b> no próprio controle, na ordem: primeiro o Jogador 1, depois o 2…
+        ${pads.length > 1 ? '' : 'Só há um controle ligado agora.'}</p>
+      <ol class="pad-list order-slots">${slots}</ol>
+      <p class="muted">${done ? 'Pronto!' : 'Jogos feitos com o SDK do Playzin seguem esta ordem. Ela vale até o console desligar.'}</p>`;
   }
 
   private renderScan(): string {
@@ -302,8 +440,11 @@ function kindLabel(d: BluetoothDevice): string {
   return { gamepad: 'Controle', keyboard: 'Teclado', mouse: 'Mouse', other: 'Aparelho' }[d.kind];
 }
 
-function cleanPadName(id: string): string {
-  return id.replace(/\s*\(.*\)\s*$/, '').trim() || id;
+/** Vibração curta: "este controle é o Jogador N". */
+function rumble(pad: Gamepad): void {
+  const actuator = (pad as Gamepad & { vibrationActuator?: { playEffect?: (t: string, p: object) => Promise<unknown> } })
+    .vibrationActuator;
+  actuator?.playEffect?.('dual-rumble', { duration: 200, strongMagnitude: 0.6, weakMagnitude: 0.6 }).catch(() => undefined);
 }
 
 function escapeHtml(s: string): string {

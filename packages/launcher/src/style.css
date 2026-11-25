@@ -2034,3 +2034,83 @@ svg {
 .power-screen.off .power-sub {
   color: #555;
 }
+
+/* ---------- bateria dos controles e ordem dos jogadores ---------- */
+
+.battery-icon {
+  width: 26px;
+  height: 26px;
+  flex: none;
+}
+
+.battery {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+.save-meta .battery {
+  font-size: inherit;
+  vertical-align: middle;
+}
+
+.save-meta .battery .battery-icon {
+  width: 22px;
+  height: 22px;
+}
+
+.battery.low,
+.pad-battery.low {
+  color: var(--danger);
+}
+
+.battery.charging {
+  color: #7ee2a8;
+}
+
+.pad-battery {
+  display: inline-flex;
+  margin-left: 6px;
+}
+
+.pad-battery .battery-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.pad-row.off {
+  opacity: 0.6;
+}
+
+.order-entry {
+  margin-bottom: 24px;
+}
+
+.order-slots li {
+  min-height: 56px;
+}
+
+.order-slot.next {
+  box-shadow: inset 0 0 0 3px var(--accent);
+  animation: focus-pulse 1.2s ease-in-out infinite;
+}
+
+.order-slot.next .pad-name {
+  color: var(--accent-2);
+  font-weight: 700;
+}
+
+.order-slot:not(.filled) .player-badge {
+  background: var(--line);
+  color: var(--text);
+}
+
+#game-toast {
+  position: fixed;
+  inset: 0;
+  z-index: 25; /* por cima do jogo, por baixo do menu rápido */
+  pointer-events: none;
+}

@@ -4,7 +4,7 @@ import { icons, profileIcons } from './icons';
 import type { Sounds } from './sounds';
 
 /** Quantos controles o menu escuta (o botão Guide pode vir de qualquer um). */
-const MAX_PADS = 4;
+const MAX_PADS = 8;
 const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
 

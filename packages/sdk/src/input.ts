@@ -6,6 +6,9 @@
  */
 
 import { isPausedByLauncher } from './launcher-state.js';
+import { getPlayerGamepad } from './players.js';
+
+export { getConnectedGamepads, getPlayerGamepad, getPlayerGamepads, setPlayerOrder } from './players.js';
 
 export type Action = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'action' | 'special' | 'pause';
 
@@ -65,7 +68,8 @@ export const DEFAULT_BINDINGS: InputBindings = {
 
 export interface PlayerInputOptions {
   /**
-   * Qual jogador: 0 = primeiro controle conectado, 1 = segundo...
+   * Qual jogador: 0 = Jogador 1, 1 = Jogador 2... No console, segue a ordem escolhida em
+   * Controles → "Mudar a ordem dos jogadores"; sem ordem, a ordem em que os controles conectaram.
    * O teclado conta como jogador 0, a não ser que keyboard: false.
    */
   player?: number;
@@ -152,7 +156,7 @@ export class PlayerInput {
       }
     }
 
-    const pad = getConnectedGamepads()[this.player];
+    const pad = getPlayerGamepad(this.player);
     if (pad) {
       for (const action of ACTIONS) {
         if (this.bindings.buttons[action].some((i) => pad.buttons[i]?.pressed)) this.current.add(action);
@@ -209,7 +213,7 @@ export class PlayerInput {
 
   /** Vibração (quando o controle e o driver suportam). */
   rumble(durationMs = 150, strength = 0.6): void {
-    const pad = getConnectedGamepads()[this.player] as Gamepad & {
+    const pad = getPlayerGamepad(this.player) as Gamepad & {
       vibrationActuator?: { playEffect?: (type: string, params: object) => Promise<unknown> };
     };
     pad?.vibrationActuator
@@ -218,12 +222,7 @@ export class PlayerInput {
   }
 
   get hasGamepad(): boolean {
-    return getConnectedGamepads()[this.player] !== undefined;
+    return getPlayerGamepad(this.player) !== undefined;
   }
 }
 
-/** Controles conectados, na ordem em que foram conectados (sem buracos). */
-export function getConnectedGamepads(): Gamepad[] {
-  if (typeof navigator === 'undefined' || !navigator.getGamepads) return [];
-  return [...navigator.getGamepads()].filter((p): p is Gamepad => p !== null && p.connected);
-}
