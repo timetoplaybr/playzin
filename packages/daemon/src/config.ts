@@ -10,6 +10,7 @@ export const REPO_ROOT = path.resolve(here, '../../..');
 export type SourceMode = 'auto' | 'dir' | 'udisks';
 export type BluetoothMode = 'auto' | 'bluez' | 'mock' | 'none';
 export type WifiMode = 'auto' | 'networkmanager' | 'mock' | 'none';
+export type PowerMode = 'auto' | 'logind' | 'mock' | 'none';
 
 export interface DaemonConfig {
   host: string;
@@ -31,6 +32,11 @@ export interface DaemonConfig {
   autoPair: boolean | undefined;
   /** auto = NetworkManager se houver; mock = Wi-Fi simulado (para testar a tela no PC). */
   wifi: WifiMode;
+  /**
+   * Desligar/reiniciar pela tela. auto = logind só quando o daemon roda como serviço do systemd
+   * (o console de verdade); fora disso, simulado, para não desligar o computador de quem desenvolve.
+   */
+  power: PowerMode;
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -91,6 +97,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     bluetooth: parseBluetooth(arg(argv, 'bluetooth') ?? env.PLAYZIN_BLUETOOTH ?? 'auto'),
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
     wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),
+    power: parsePower(arg(argv, 'power') ?? env.PLAYZIN_POWER ?? 'auto'),
   };
 }
 
@@ -106,6 +113,13 @@ function parseWifi(value: string): WifiMode {
     throw new Error(`Wi-Fi inválido: "${value}" (use auto, networkmanager, mock ou none)`);
   }
   return value as WifiMode;
+}
+
+function parsePower(value: string): PowerMode {
+  if (!['auto', 'logind', 'mock', 'none'].includes(value)) {
+    throw new Error(`Energia inválida: "${value}" (use auto, logind, mock ou none)`);
+  }
+  return value as PowerMode;
 }
 
 function parseBool(value: string | undefined): boolean | undefined {

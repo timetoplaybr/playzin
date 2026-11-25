@@ -11,6 +11,8 @@ WorkingDirectory=/opt/playzin
 Environment=NODE_ENV=production
 Environment=PLAYZIN_SOURCE=udisks
 Environment=PLAYZIN_PORT=7777
+# Desligar/reiniciar pela tela, via systemd-logind (permissão em 50-playzin-power.rules)
+Environment=PLAYZIN_POWER=logind
 # Saves dos jogos: o systemd cria /var/lib/playzin com dono "playzin"
 StateDirectory=playzin
 Environment=PLAYZIN_SAVES_DIR=/var/lib/playzin/saves

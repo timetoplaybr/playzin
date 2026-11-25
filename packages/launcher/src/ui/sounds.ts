@@ -56,6 +56,12 @@ export class Sounds {
     this.tone(1318.5, 0.25, 'triangle', 0.35, 0.14);
   }
 
+  /** Desligando: o acorde da abertura, descendo. */
+  powerOff(): void {
+    const notes = [1046.5, 783.99, 659.25, 523.25]; // dó, sol, mi, dó
+    notes.forEach((f, i) => this.tone(f, 0.4, 'sine', 0.3, i * 0.11));
+  }
+
   /** Abertura: o cartucho encaixando na fenda. */
   bootClick(): void {
     this.click(0, 0.7);

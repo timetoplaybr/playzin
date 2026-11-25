@@ -70,9 +70,10 @@ chmod +x "$APP_DIR/scripts/pi/kiosk.sh"
 step "Dependências e build (pode levar alguns minutos no Pi)"
 sudo -u "$APP_USER" -H bash -c "cd '$APP_DIR' && npm install --no-audit --no-fund && npm run build"
 
-step "Permissões: montar pendrives e escolher o Wi-Fi (polkit)"
+step "Permissões: montar pendrives, escolher o Wi-Fi e desligar pela tela (polkit)"
 install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-udisks.rules" /etc/polkit-1/rules.d/50-playzin-udisks.rules
 install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-network.rules" /etc/polkit-1/rules.d/50-playzin-network.rules
+install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-power.rules" /etc/polkit-1/rules.d/50-playzin-power.rules
 
 step "Bluetooth (permissão para o console parear controles)"
 install -m 644 "$APP_DIR/scripts/pi/files/playzin-bluetooth.conf" /etc/dbus-1/system.d/playzin-bluetooth.conf

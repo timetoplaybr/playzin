@@ -1,0 +1,14 @@
+// Permite que o usuário "playzin" (que roda o daemon, sem sessão gráfica) desligue e
+// reinicie o console pela tela, via systemd-logind. Nada além de desligar/reiniciar.
+// As variantes "-multiple-sessions" valem quando há outra sessão aberta (a do quiosque, um SSH).
+polkit.addRule(function (action, subject) {
+  if (subject.user !== "playzin") return polkit.Result.NOT_HANDLED;
+  var allowed = [
+    "org.freedesktop.login1.power-off",
+    "org.freedesktop.login1.power-off-multiple-sessions",
+    "org.freedesktop.login1.reboot",
+    "org.freedesktop.login1.reboot-multiple-sessions"
+  ];
+  if (allowed.indexOf(action.id) >= 0) return polkit.Result.YES;
+  return polkit.Result.NOT_HANDLED;
+});

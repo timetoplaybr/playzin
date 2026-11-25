@@ -114,6 +114,17 @@ connection.onMessage((msg) => {
     case 'wifi':
       store.update({ wifi: msg.state });
       break;
+    case 'power':
+      store.update({ power: msg.state });
+      break;
+    case 'power-action':
+      // Desligando com um jogo aberto (pela API): fecha antes, para gravar saves e tempo de jogo.
+      if (frame.isOpen) stopPlaying();
+      home.onPowerAction(msg.action, msg.simulated);
+      break;
+    case 'power-error':
+      home.onPowerError(msg.message);
+      break;
     case 'wifi-connected':
       home.onWifiConnected(msg.ssid);
       break;

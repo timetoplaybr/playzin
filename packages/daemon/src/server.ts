@@ -14,6 +14,7 @@ import type { BluetoothController } from './bluetooth/controller.js';
 import type { WifiController } from './wifi/controller.js';
 import { WifiError } from './wifi/types.js';
 import { BluetoothError } from './bluetooth/types.js';
+import { PowerError, type PowerController } from './power.js';
 
 export async function createServer(
   config: DaemonConfig,
@@ -23,6 +24,7 @@ export async function createServer(
   playtime: PlaytimeStore,
   bluetooth: BluetoothController,
   wifi: WifiController,
+  power: PowerController,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -202,6 +204,18 @@ export async function createServer(
     }
   });
 
+  // ---- Energia ----
+  app.get('/api/power', async () => power.state());
+  app.post<{ Body: { action?: unknown } }>('/api/power', async (req, reply) => {
+    try {
+      power.request(req.body?.action);
+      return reply.code(202).send({ ok: true });
+    } catch (err) {
+      const status = err instanceof PowerError ? err.status : 500;
+      return reply.code(status).send({ error: (err as Error).message });
+    }
+  });
+
   // ---- Perfis ----
   const profileFail = (reply: import('fastify').FastifyReply, err: unknown) =>
     err instanceof ProfileError
@@ -302,6 +316,7 @@ export async function createServer(
     send(socket, { type: 'profiles', profiles: profiles.list() });
     send(socket, { type: 'bluetooth', state: bluetooth.state() });
     send(socket, { type: 'wifi', state: wifi.state() });
+    send(socket, { type: 'power', state: power.state() });
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -326,6 +341,8 @@ export async function createServer(
   wifi.on('state', (state) => broadcast({ type: 'wifi', state }));
   wifi.on('connected', (ssid) => broadcast({ type: 'wifi-connected', ssid }));
   wifi.on('error', (message, ssid, wrongPassword) => broadcast({ type: 'wifi-error', message, ssid, wrongPassword }));
+  power.on('action', (action, simulated) => broadcast({ type: 'power-action', action, simulated }));
+  power.on('error', (message) => broadcast({ type: 'power-error', message }));
 
   return app;
 }

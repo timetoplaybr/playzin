@@ -135,6 +135,9 @@ São os itens que o README ainda marca como não testados no hardware:
 2. **UDisks2:** plugar e puxar o pendrive com o jogo aberto, e verificar se o progresso foi salvo.
 3. **Wi‑Fi** pela tela do console (NetworkManager).
 4. **Bluetooth:** parear um controle pela tela Controles.
+5. **Desligar e reiniciar** pelo ícone Desligar da tela inicial: a TV fica sem sinal (desligar)
+   ou o console volta sozinho para o menu (reiniciar). Se aparecer um aviso de permissão,
+   confira se existe `/etc/polkit-1/rules.d/50-playzin-power.rules`.
 
 **Não ligue o Overlay File System** (o modo somente leitura) por enquanto: com ele ativo, os saves
 se perdem a cada reboot.

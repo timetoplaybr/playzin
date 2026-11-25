@@ -60,7 +60,8 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
   para trocar de perfil. Veja [Perfis](#perfis-até-4-pessoas-por-console).
 - **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Atividade (tempo
   de jogo do perfil, jogo a jogo, e quanto cada perfil jogou de cada um), Dados salvos (progresso de cada
-  jogo, com opção de apagar), Configurações (versão, status) e Tela cheia (também pela tecla **F**).
+  jogo, com opção de apagar), Configurações (versão, status), Tela cheia (também pela tecla **F**)
+  e Desligar (veja [Desligar e reiniciar](#desligar-e-reiniciar)).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
   No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
 - Navegue com direcional/setas, mouse (clique seleciona, segundo clique abre) ou controle.
@@ -217,6 +218,21 @@ A rede configurada no Raspberry Pi Imager, na gravação do cartão SD, já apar
 Os jogos não precisam de internet; ela serve para acertar o relógio (o Pi 4 não guarda a hora
 desligado) e para atualizações.
 
+## Desligar e reiniciar
+
+O último ícone da tela inicial, **Desligar**, abre duas opções: **Desligar o console** e
+**Reiniciar o console**. A tela mostra "Desligando…" e, um instante depois, o sistema desliga de
+verdade: a TV fica sem sinal e aí pode tirar da tomada. Desligar por aqui evita estragar o
+cartão de memória. Os saves já estão gravados (o console grava enquanto você joga).
+
+No Pi, o daemon desliga pelo systemd-logind (D-Bus), com a permissão dada pelo polkit em
+`scripts/pi/files/50-playzin-power.rules` (instalada pelo `setup.sh`). Se algo der errado
+(falta de permissão, sistema sem responder), a tela volta para o menu com o aviso do erro.
+
+**No computador** o desligamento é **simulado**: a tela "apaga" e qualquer botão "liga" de novo
+(Reiniciar recarrega o launcher). O daemon só desliga de verdade quando roda como serviço do
+systemd (o console) ou com `PLAYZIN_POWER=logind`.
+
 ## Testando no PC com Bluetooth e Wi-Fi simulados
 
 No computador, as telas de Controles e Wi-Fi não mexem no Bluetooth nem no Wi-Fi de verdade.
@@ -313,7 +329,7 @@ Para pular: `sudo ./scripts/pi/setup.sh --sem-xpadneo`.
 Overlay File System. Faça isso **depois** de parear os controles: com o overlay ligado,
 nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos jogos**
 (`/var/lib/playzin`). Por enquanto, prefira não ligar o overlay e desligar o console pelo
-botão. Uma partição separada só para os saves está nos próximos passos.
+ícone **Desligar** da tela inicial. Uma partição separada só para os saves está nos próximos passos.
 
 ## Configuração do daemon (variáveis de ambiente)
 
@@ -328,6 +344,7 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 | `PLAYZIN_BLUETOOTH` | `auto` | `auto` (BlueZ se houver), `bluez`, `mock` (simulado) ou `none`. Também `--bluetooth=mock` |
 | `PLAYZIN_BT_AUTOPAIR` | ligado no Pi | Pareamento automático ao ligar sem controle pareado (`0` desliga). Também `--autopair` |
 | `PLAYZIN_WIFI` | `auto` | `auto` (NetworkManager se houver), `networkmanager`, `mock` (simulado) ou `none`. Também `--wifi=mock` |
+| `PLAYZIN_POWER` | `auto` (Pi: `logind`) | Desligar/reiniciar pela tela: `auto` (logind só rodando como serviço do systemd; senão simulado), `logind`, `mock` ou `none`. Também `--power=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 | `PLAYZIN_PROFILES_FILE` | `profiles.json` ao lado da pasta de saves | Lista de perfis do console |
 
@@ -337,6 +354,8 @@ botão. Uma partição separada só para os saves está nos próximos passos.
 - [x] Tela inicial estilo console: fileira de jogos com histórico, ícones de sistema, painéis, sons, mouse/teclado/controle
 - [x] SDK: input unificado teclado/controle, saves por jogo, `ready()` / `exitToMenu()`
 - [x] Menu rápido durante o jogo (continuar, reiniciar, sair), com pausa avisada ao jogo
+- [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
+- [ ] Testar o desligar/reiniciar de verdade (logind + polkit) no Raspberry Pi
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)
 - [x] Comando `playzin` (init, build, check, insert, eject, pack) e SDK em `playzin/sdk`
 - [x] Pareamento Bluetooth pela tela do console (com pareamento automático e Bluetooth simulado)

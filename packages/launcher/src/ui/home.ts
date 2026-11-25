@@ -1,5 +1,5 @@
 import { ACTIONS, getConnectedGamepads, PlayerInput, type Action } from '@playzin/sdk';
-import type { BluetoothDevice, CartridgeInfo, PlaytimeSummary, Profile, SaveSummary } from '@playzin/shared';
+import type { BluetoothDevice, CartridgeInfo, PlaytimeSummary, PowerAction, Profile, SaveSummary } from '@playzin/shared';
 import type { Library, LibraryEntry } from '../library';
 import type { ConsoleState, ConsoleStore } from '../store';
 import { ControllersPanel } from './controllers-panel';
@@ -7,6 +7,8 @@ import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
+import { PowerPanel } from './power-panel';
+import { PowerScreen } from './power-screen';
 import { applyTheme, restoreTheme, setProfileTheme } from './theme';
 import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
@@ -69,7 +71,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | 'power' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -91,6 +93,9 @@ export class HomeUI {
   private readonly ctrlPanel: ControllersPanel;
   private readonly wifiPanel: WifiPanel;
   private readonly activityPanel: ActivityPanel;
+  private readonly powerPanel: PowerPanel;
+  /** "Desligando…" por cima de tudo. */
+  private readonly powerScreen: PowerScreen;
   private readonly keyboard: VirtualKeyboard;
   private readonly profileScreen: ProfileScreen;
   /** Abertura ao ligar (some sozinha, ou com qualquer botão). */
@@ -185,6 +190,14 @@ export class HomeUI {
       host: () => this.el.panel,
       hintsChanged: () => this.renderHints(),
     });
+    this.powerPanel = new PowerPanel({
+      store,
+      sounds,
+      host: () => this.el.panel,
+      toast: (text, kind) => this.showToast(text, kind),
+      hintsChanged: () => this.renderHints(),
+    });
+    this.powerScreen = new PowerScreen(root, sounds);
     this.wifiPanel = new WifiPanel({
       store,
       sounds,
@@ -255,6 +268,18 @@ export class HomeUI {
       if (this.rafId !== undefined) cancelAnimationFrame(this.rafId);
       this.rafId = undefined;
     }
+  }
+
+  /** O console vai desligar/reiniciar agora: tela de "Desligando…" por cima de tudo. */
+  onPowerAction(action: PowerAction, simulated: boolean): void {
+    if (this.panel) this.closePanel();
+    this.held = null;
+    this.powerScreen.start(action, simulated);
+  }
+
+  onPowerError(message: string): void {
+    this.powerScreen.cancel();
+    this.showError(message);
   }
 
   onWifiConnected(ssid: string): void {
@@ -392,6 +417,7 @@ export class HomeUI {
     }
     if (state.bluetooth !== prev.bluetooth && this.panel === 'controllers') this.renderPanel();
     if (state.wifi !== prev.wifi && this.panel === 'wifi') this.renderPanel();
+    if (state.power !== prev.power && this.panel === 'power') this.renderPanel();
 
     if (state.notice && state.notice !== prev.notice) this.showToast(state.notice.text, state.notice.kind);
   }
@@ -615,11 +641,6 @@ export class HomeUI {
 
   private activateSystem(id: SystemId): void {
     if (id === 'fullscreen') return void this.toggleFullscreen();
-    if (id === 'power') {
-      this.sounds.error();
-      this.showToast('Para desligar, use o botão do console');
-      return;
-    }
     this.sounds.select();
     this.openPanel(id);
   }
@@ -674,6 +695,7 @@ export class HomeUI {
     if (panel === 'controllers') this.ctrlPanel.open();
     if (panel === 'wifi') this.wifiPanel.open();
     if (panel === 'activity') this.activityPanel.open();
+    if (panel === 'power') this.powerPanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
     if (panel === 'saves') {
       this.saves = null;
@@ -786,6 +808,8 @@ export class HomeUI {
       this.renderHints();
     } else if (this.panel === 'activity') {
       this.activityPanel.render();
+    } else if (this.panel === 'power') {
+      this.powerPanel.render();
     } else if (this.panel === 'settings') {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
@@ -840,6 +864,8 @@ export class HomeUI {
       html = this.wifiPanel.hints(hint);
     } else if (this.panel === 'activity') {
       html = this.activityPanel.hints(hint);
+    } else if (this.panel === 'power') {
+      html = this.powerPanel.hints(hint);
     } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel) {
@@ -882,6 +908,11 @@ export class HomeUI {
     if (!this.active) return;
     this.input.update();
     if (++this.frame % 30 === 0) this.updatePads();
+    // Desligando: nada responde (no simulado, com a tela "apagada", qualquer botão liga de novo).
+    if (this.powerScreen.isOpen) {
+      if (SKIP_ACTIONS.some((a) => this.input.justPressed(a))) this.powerScreen.wake();
+      return;
+    }
     // Abertura na tela: qualquer botão pula, e o aperto não vaza para o menu.
     if (this.splash.isOpen) {
       if (SKIP_ACTIONS.some((a) => this.input.justPressed(a))) this.splash.skip();
@@ -907,6 +938,14 @@ export class HomeUI {
     }
     if (this.panel === 'activity') {
       const result = this.activityPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
+    if (this.panel === 'power') {
+      const result = this.powerPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
         repeatPressed: (a) => this.repeatPressed(a),
       });

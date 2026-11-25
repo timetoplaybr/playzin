@@ -88,6 +88,15 @@ export interface WifiState {
   networks: WifiNetwork[];
 }
 
+// ---- Energia: desligar e reiniciar pela tela ----
+
+export type PowerAction = 'poweroff' | 'reboot';
+
+export interface PowerState {
+  /** "logind" no Raspberry Pi (desliga de verdade), "mock" no PC (só simula), "none" sem suporte. */
+  backend: 'logind' | 'mock' | 'none';
+}
+
 // ---- Perfis: até 4 pessoas por console, cada uma com seus saves ----
 
 export const MAX_PROFILES = 4;
@@ -132,6 +141,10 @@ export type ServerMessage =
   | { type: 'wifi'; state: WifiState }
   | { type: 'wifi-connected'; ssid: string }
   | { type: 'wifi-error'; message: string; ssid?: string; wrongPassword?: boolean }
+  | { type: 'power'; state: PowerState }
+  /** O console vai desligar/reiniciar agora (o launcher mostra a tela de "Desligando…"). */
+  | { type: 'power-action'; action: PowerAction; simulated: boolean }
+  | { type: 'power-error'; message: string }
   | { type: 'cartridge-inserted'; cartridge: CartridgeInfo }
   | { type: 'cartridge-removed'; slotId: string }
   | { type: 'cartridge-error'; message: string; source: string };

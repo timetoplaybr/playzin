@@ -6,6 +6,7 @@ import { BluetoothController } from './bluetooth/controller.js';
 import { MockBackend } from './bluetooth/mock.js';
 import type { BluetoothBackend } from './bluetooth/types.js';
 import { PlaytimeStore } from './playtime-store.js';
+import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
 import { WifiController } from './wifi/controller.js';
@@ -49,7 +50,20 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, bluetooth, wifi);
+  let powerBackend: PowerBackend | null = null;
+  // INVOCATION_ID: o systemd define para os serviços. Rodando à mão (npm start), é o PC de alguém.
+  const underSystemd = Boolean(process.env.INVOCATION_ID);
+  if (config.power === 'mock') powerBackend = new MockPowerBackend();
+  else if (config.power === 'logind') powerBackend = new LogindBackend();
+  else if (config.power === 'auto') {
+    powerBackend = underSystemd && (await LogindBackend.isAvailable()) ? new LogindBackend() : new MockPowerBackend();
+  }
+  const power = new PowerController(powerBackend, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
+  const app = await createServer(config, manager, saves, profiles, playtime, bluetooth, wifi, power);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -88,6 +102,7 @@ async function main(): Promise<void> {
   app.log.info(`perfis: ${profiles.list().map((p) => p.name).join(', ') || 'nenhum ainda'}`);
   app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
   app.log.info(`wi-fi: ${wifiBackend ? (wifiBackend.name === 'mock' ? 'simulado' : 'NetworkManager') : 'indisponível'}`);
+  app.log.info(`desligar: ${powerBackend ? (powerBackend.name === 'mock' ? 'simulado' : 'logind') : 'indisponível'}`);
   if (config.sourceMode !== 'udisks') {
     app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
     if (config.driveRoots.length) app.log.info(`unidades observadas: ${config.driveRoots.map((d) => d.slice(0, 2)).join(' ')}`);
