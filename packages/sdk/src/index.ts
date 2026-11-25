@@ -17,20 +17,50 @@ export function isInsidePlayzin(): boolean {
   }
 }
 
-function postToLauncher(type: GameToLauncherMessage['type']): void {
+type Payload<T> = T extends { type: infer K } ? Omit<T, 'source' | 'type'> & { type: K } : never;
+
+function postToLauncher(payload: Payload<GameToLauncherMessage>): void {
   if (!isInsidePlayzin()) return;
-  const msg: GameToLauncherMessage = { source: 'playzin-sdk', type };
+  const msg = { source: 'playzin-sdk', ...payload } as GameToLauncherMessage;
   window.parent.postMessage(msg, window.location.origin);
+}
+
+/**
+ * Desbloqueia uma conquista declarada no playzin.json ("achievements"). O console guarda no
+ * perfil de quem está jogando e mostra o aviso por cima do jogo, só na primeira vez: pode chamar
+ * de novo sem medo (ex.: a cada frame em que a condição vale). Fora do Playzin, não faz nada.
+ */
+export function unlockAchievement(id: string): void {
+  if (unlockedHere().has(id)) return;
+  unlockedHere().add(id);
+  postToLauncher({ type: 'achievement', id });
+}
+
+/** O perfil que está jogando já tem esta conquista? (Fora do Playzin: só as desta partida.) */
+export function isAchievementUnlocked(id: string): boolean {
+  if (unlockedHere().has(id)) return true;
+  try {
+    const list = (window.parent as unknown as { __playzinAchievements?: string[] }).__playzinAchievements;
+    return Array.isArray(list) && list.includes(id);
+  } catch {
+    return false;
+  }
+}
+
+/** Desbloqueadas nesta página (evita mandar o mesmo pedido mil vezes). */
+let sent: Set<string> | undefined;
+function unlockedHere(): Set<string> {
+  return (sent ??= new Set());
 }
 
 /** Avise quando o jogo terminou de carregar (o launcher tira a tela de "carregando"). */
 export function ready(): void {
-  postToLauncher('ready');
+  postToLauncher({ type: 'ready' });
 }
 
 /** Volta para o menu do console. Fora do Playzin, não faz nada. */
 export function exitToMenu(): void {
-  postToLauncher('exit');
+  postToLauncher({ type: 'exit' });
 }
 
 /**

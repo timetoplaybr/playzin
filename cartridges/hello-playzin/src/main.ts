@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { createSaveStore, exitToMenu, isInsidePlayzin, onLauncherMessage, PlayerInput, ready } from 'playzin/sdk';
+import { createSaveStore, exitToMenu, isInsidePlayzin, onLauncherMessage, PlayerInput, ready, unlockAchievement } from 'playzin/sdk';
 
 const WIDTH = 1280;
 const HEIGHT = 720;
@@ -12,6 +12,7 @@ const saves = createSaveStore(GAME_ID);
  * - createSaveStore: recorde salvo por jogo
  * - ready() e exitToMenu(): conversa com o launcher
  * - onLauncherMessage(): pausa o relógio enquanto o menu rápido do console está aberto
+ * - unlockAchievement(): conquistas declaradas no playzin.json
  */
 class PlayScene extends Phaser.Scene {
   private player!: Phaser.GameObjects.Rectangle;
@@ -87,6 +88,10 @@ class PlayScene extends Phaser.Scene {
     if (Phaser.Math.Distance.Between(this.player.x, this.player.y, this.star.x, this.star.y) < 48) {
       this.score += 1;
       this.controls.rumble(80, 0.4);
+      // Conquistas (declaradas no playzin.json). Chamar de novo não repete o aviso.
+      unlockAchievement('primeira-estrela');
+      if (this.score >= 10) unlockAchievement('dez-estrelas');
+      if (this.timeLeft <= 1) unlockAchievement('ultimo-segundo');
       this.tweens.add({ targets: this.player, scale: 1.3, duration: 80, yoyo: true });
       this.moveStar();
     }
@@ -101,6 +106,7 @@ class PlayScene extends Phaser.Scene {
   private finish(): void {
     this.finished = true;
     const record = this.score > this.best;
+    if (record && this.best > 0) unlockAchievement('recorde'); // a primeira partida não conta
     if (record) {
       this.best = this.score;
       saves.set('best', this.best);

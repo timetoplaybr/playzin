@@ -152,6 +152,38 @@ mesmo assim). Pastas de projeto, a pasta pessoal e a unidade do sistema nunca s�
 - `entry` (padrão `index.html`) e `cover` são caminhos relativos à raiz do cartucho.
 - A capa aparece num bloco **quadrado**: use **512×512** (PNG ou JPG, até 400 KB) em `public/cover.png`.
   Sem capa, o console gera uma com as iniciais do jogo.
+- `achievements` (opcional): as conquistas do jogo. Veja [Conquistas](#conquistas).
+
+### Conquistas
+
+O jogo declara as conquistas no `playzin.json` e desbloqueia pelo SDK:
+
+```json
+"achievements": [
+  { "id": "primeira-estrela", "name": "Primeira estrela", "description": "Pegue a sua primeira estrela." },
+  { "id": "ultimo-segundo", "name": "No apagar das luzes", "description": "Pegue uma estrela no último segundo.", "hidden": true }
+]
+```
+
+```ts
+import { unlockAchievement, isAchievementUnlocked } from 'playzin/sdk';
+
+unlockAchievement('primeira-estrela');           // pode chamar sempre que a condição valer
+if (isAchievementUnlocked('ultimo-segundo')) { … } // o perfil que está jogando já tem?
+```
+
+- `id` no mesmo formato do id do jogo; `name` até 60 caracteres; `description` até 140; até 100
+  conquistas. `hidden: true` deixa a conquista **secreta**: nome e descrição só aparecem depois
+  de desbloqueada. O `playzin check` confere tudo isso.
+- Na primeira vez, o console mostra "Conquista desbloqueada" por cima do jogo, com um som. Chamar de
+  novo não repete o aviso; um id que não está no `playzin.json` só gera um aviso no console do
+  navegador (para quem está fazendo o jogo).
+- Cada perfil tem as suas conquistas (`saves/<perfil>/_achievements.json`). O menu rápido mostra
+  "3 de 4 conquistas" e a tela **Atividade** mostra a contagem de cada jogo e, no detalhe, a lista.
+- Só o jogo do cartucho inserido desbloqueia, e só as conquistas dele. O console guarda a lista de
+  cada jogo que já passou por ele (`saves/_achievements.json`), então a Atividade continua mostrando
+  as conquistas com o cartucho fora.
+- Fora do console, `unlockAchievement()` não faz nada.
 
 ### SDK (opcional, recomendado)
 
@@ -181,6 +213,7 @@ Jogador 1; quem desligou o controle fica `undefined`, sem empurrar os outros) e 
 Fora do console, `ready()` e `exitToMenu()` não fazem nada: o jogo continua rodando normalmente no navegador.
 Com o menu rápido aberto, o `PlayerInput` não registra nada (e o botão usado para fechar o menu não
 vaza para o jogo); `isPausedByLauncher()` diz se o menu está aberto agora.
+Conquistas: `unlockAchievement(id)` e `isAchievementUnlocked(id)` (veja [Conquistas](#conquistas)).
 O `mozin-e-mozinzin-the-game` é um exemplo completo de jogo integrado.
 
 ## Controles Bluetooth
@@ -286,7 +319,8 @@ cor nova antes de salvar.
 **Tempo de jogo:** o console conta quanto cada perfil jogou de cada jogo. Aparece ao lado do nome
 do jogo na tela inicial, em *Dados salvos*, em *Configurações* (total) e em *Quem vai jogar?*.
 A tela **Atividade** lista os jogos do perfil do mais jogado para o menos jogado, com tempo,
-quantas vezes abriu e quando jogou por último; A num jogo mostra quanto cada perfil jogou dele.
+quantas vezes abriu e quando jogou por último (e as conquistas, nos jogos que têm); A num jogo
+mostra quanto cada perfil jogou dele e as conquistas do perfil ativo (o direcional rola a tela).
 Só conta o tempo jogando de verdade: para com a janela escondida e depois de 10 minutos sem
 ninguém mexer em controle, teclado ou mouse. O launcher envia o tempo a cada 30 s, então desligar
 na tomada perde no máximo isso.
@@ -374,6 +408,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Menu rápido durante o jogo (continuar, reiniciar, sair), com pausa avisada ao jogo
 - [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
+- [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
 - [ ] Testar a bateria de verdade (BlueZ Battery1 e /sys/class/power_supply) no Raspberry Pi
 - [ ] Testar o desligar/reiniciar de verdade (logind + polkit) no Raspberry Pi
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)

@@ -5,6 +5,7 @@ import { BluezBackend } from './bluetooth/bluez.js';
 import { BluetoothController } from './bluetooth/controller.js';
 import { MockBackend } from './bluetooth/mock.js';
 import type { BluetoothBackend } from './bluetooth/types.js';
+import { AchievementStore } from './achievements-store.js';
 import { PlaytimeStore } from './playtime-store.js';
 import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
 import { ProfileStore } from './profile-store.js';
@@ -29,6 +30,7 @@ async function main(): Promise<void> {
   const profiles = new ProfileStore(config.profilesFile, saves);
   await profiles.init();
   const playtime = new PlaytimeStore(config.savesDir);
+  const achievements = new AchievementStore(config.savesDir);
 
   let backend: BluetoothBackend | null = null;
   if (config.bluetooth === 'mock') backend = new MockBackend();
@@ -63,7 +65,7 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, bluetooth, wifi, power);
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =

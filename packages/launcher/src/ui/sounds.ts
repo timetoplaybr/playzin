@@ -56,6 +56,12 @@ export class Sounds {
     this.tone(1318.5, 0.25, 'triangle', 0.35, 0.14);
   }
 
+  /** Conquista: arpejo rápido subindo e um brilho no fim. */
+  achievement(): void {
+    [659.25, 783.99, 987.77, 1318.5].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.4, i * 0.07));
+    this.tone(1975.5, 0.5, 'sine', 0.18, 0.3);
+  }
+
   /** Desligando: o acorde da abertura, descendo. */
   powerOff(): void {
     const notes = [1046.5, 783.99, 659.25, 523.25]; // dó, sol, mi, dó

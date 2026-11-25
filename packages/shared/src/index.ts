@@ -24,6 +24,54 @@ export interface CartridgeManifest {
   /** Quantidade de jogadores suportada (ex.: 1 ou [1, 2]). */
   players?: number | [number, number];
   author?: string;
+  /** Conquistas do jogo. O jogo desbloqueia com unlockAchievement(id) do SDK. */
+  achievements?: AchievementDef[];
+}
+
+// ---- Conquistas ----
+
+export const MAX_ACHIEVEMENTS = 100;
+export const ACHIEVEMENT_NAME_MAX = 60;
+export const ACHIEVEMENT_DESCRIPTION_MAX = 140;
+
+/** Uma conquista como o jogo declara no playzin.json. */
+export interface AchievementDef {
+  /** Identificador (minúsculas, números, ".", "-" ou "_"): é o que o jogo passa para unlockAchievement. */
+  id: string;
+  name: string;
+  /** Como conseguir (ex.: "Pegue 10 estrelas numa partida"). */
+  description: string;
+  /** Secreta: nome e descrição só aparecem depois de desbloqueada. */
+  hidden?: boolean;
+}
+
+/** Conquista com a situação do perfil. Secretas ainda bloqueadas vêm sem nome nem descrição. */
+export interface AchievementStatus extends AchievementDef {
+  unlockedAt: string | null;
+}
+
+/** Conquistas de um jogo para um perfil (GET /api/achievements/game/:id). */
+export interface GameAchievements {
+  id: string;
+  name: string;
+  total: number;
+  unlocked: number;
+  /** Desbloqueadas primeiro (mais recentes antes), depois as bloqueadas na ordem do jogo. */
+  achievements: AchievementStatus[];
+}
+
+/** Resumo por jogo (GET /api/achievements). */
+export interface AchievementsSummary {
+  games: { id: string; name: string; total: number; unlocked: number; lastUnlockedAt: string | null }[];
+}
+
+/** Resposta do desbloqueio (POST /api/achievements/:perfil/:jogo). */
+export interface AchievementUnlock {
+  achievement: AchievementStatus;
+  /** false = já estava desbloqueada (o console não avisa de novo). */
+  isNew: boolean;
+  unlocked: number;
+  total: number;
 }
 
 /** Cartucho pronto para jogar, como o daemon anuncia ao launcher. */
@@ -162,7 +210,8 @@ export type ClientMessage = { type: 'hello'; client: 'launcher' } | { type: 'pin
 /** Mensagens trocadas via postMessage entre o jogo (dentro do iframe) e o launcher. */
 export type GameToLauncherMessage =
   | { source: 'playzin-sdk'; type: 'ready' }
-  | { source: 'playzin-sdk'; type: 'exit' };
+  | { source: 'playzin-sdk'; type: 'exit' }
+  | { source: 'playzin-sdk'; type: 'achievement'; id: string };
 
 export type LauncherToGameMessage = { source: 'playzin-launcher'; type: 'pause' | 'resume' };
 
@@ -249,6 +298,7 @@ export function validateManifest(raw: unknown): ManifestValidation {
   if (r.author !== undefined && typeof r.author !== 'string') {
     errors.push('"author" precisa ser texto');
   }
+  const achievements = validateAchievements(r.achievements, errors);
   if (r.players !== undefined) {
     const p = r.players;
     const validNumber = (n: unknown) => typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= 8;
@@ -267,6 +317,46 @@ export function validateManifest(raw: unknown): ManifestValidation {
   if (r.description !== undefined) manifest.description = r.description as string;
   if (r.cover !== undefined) manifest.cover = r.cover as string;
   if (r.players !== undefined) manifest.players = r.players as CartridgeManifest['players'];
+  if (achievements) manifest.achievements = achievements;
   if (r.author !== undefined) manifest.author = r.author as string;
   return { ok: true, manifest, errors };
+}
+
+/** Confere a lista de conquistas do playzin.json (erros vão para `errors`). */
+function validateAchievements(raw: unknown, errors: string[]): AchievementDef[] | undefined {
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw)) {
+    errors.push('"achievements" precisa ser uma lista');
+    return undefined;
+  }
+  if (raw.length > MAX_ACHIEVEMENTS) errors.push(`"achievements": no máximo ${MAX_ACHIEVEMENTS} conquistas`);
+  const seen = new Set<string>();
+  const out: AchievementDef[] = [];
+  raw.forEach((item, i) => {
+    const where = `"achievements"[${i}]`;
+    const a = item as Record<string, unknown> | null;
+    if (typeof a !== 'object' || a === null || Array.isArray(a)) {
+      errors.push(`${where} precisa ser um objeto { id, name, description }`);
+      return;
+    }
+    const id = a.id;
+    if (typeof id !== 'string' || !ID_PATTERN.test(id)) {
+      errors.push(`${where}: "id" com letras minúsculas, números, ".", "-" ou "_"`);
+    } else if (seen.has(id)) {
+      errors.push(`${where}: o id "${id}" se repete`);
+    } else {
+      seen.add(id);
+    }
+    const name = typeof a.name === 'string' ? a.name.trim() : '';
+    if (!name || name.length > ACHIEVEMENT_NAME_MAX) errors.push(`${where}: "name" é obrigatório (até ${ACHIEVEMENT_NAME_MAX} caracteres)`);
+    const description = typeof a.description === 'string' ? a.description.trim() : '';
+    if (!description || description.length > ACHIEVEMENT_DESCRIPTION_MAX) {
+      errors.push(`${where}: "description" é obrigatória (até ${ACHIEVEMENT_DESCRIPTION_MAX} caracteres)`);
+    }
+    if (a.hidden !== undefined && typeof a.hidden !== 'boolean') errors.push(`${where}: "hidden" precisa ser true ou false`);
+    const def: AchievementDef = { id: String(id), name, description };
+    if (a.hidden === true) def.hidden = true;
+    out.push(def);
+  });
+  return out;
 }

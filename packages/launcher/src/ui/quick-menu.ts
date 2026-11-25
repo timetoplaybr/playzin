@@ -44,6 +44,7 @@ export class QuickMenu {
   private held: { action: Action; since: number; last: number } | null = null;
   private clockTimer: number | undefined;
   private game: { cartridge: CartridgeInfo; profile: Profile | null; startedAt: number } | null = null;
+  private achievements = { unlocked: 0, total: 0 };
 
   constructor(
     private readonly sounds: Sounds,
@@ -82,6 +83,12 @@ export class QuickMenu {
   /** Jogo que começou agora (para mostrar nome, capa, perfil e tempo desta partida). */
   setGame(cartridge: CartridgeInfo | null, profile: Profile | null): void {
     this.game = cartridge ? { cartridge, profile, startedAt: Date.now() } : null;
+  }
+
+  /** Conquistas do perfil neste jogo (aparecem embaixo do nome). */
+  setAchievements(unlocked: number, total: number): void {
+    this.achievements = { unlocked, total };
+    if (this.isOpen) this.renderInfo();
   }
 
   open(): void {
@@ -203,6 +210,7 @@ export class QuickMenu {
         <div>
           <div class="qm-name">${name}</div>
           <div class="qm-meta">${session}</div>
+          ${this.achievements.total > 0 ? `<div class="qm-meta qm-ach">${icons.trophy}${this.achievements.unlocked} de ${this.achievements.total} conquistas</div>` : ''}
         </div>
       </div>
       <div class="qm-status">${who}<span class="qm-pads">${icons.gamepad}${pads === 0 ? 'Sem controle' : pads === 1 ? '1 controle' : `${pads} controles`}</span></div>`;

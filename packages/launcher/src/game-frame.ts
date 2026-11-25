@@ -1,7 +1,15 @@
 import { GamepadButton, getConnectedGamepads } from '@playzin/sdk';
-import type { CartridgeInfo, GameToLauncherMessage, LauncherToGameMessage, Profile } from '@playzin/shared';
+import type {
+  AchievementUnlock,
+  CartridgeInfo,
+  GameAchievements,
+  GameToLauncherMessage,
+  LauncherToGameMessage,
+  Profile,
+} from '@playzin/shared';
 import { PlaytimeTracker } from './playtime';
 import { QuickMenu } from './ui/quick-menu';
+import type { GameToast } from './ui/game-toast';
 import type { Sounds } from './ui/sounds';
 
 const HOLD_TO_MENU_MS = 1000;
@@ -38,6 +46,10 @@ export class GameFrame {
   private readonly menu: QuickMenu;
   private guideWasDown = false;
   private gameUrl = '';
+  private profileId: string | null = null;
+  /** Conquistas que o perfil já tem neste jogo (o SDK lê em __playzinAchievements). */
+  private achievements = new Set<string>();
+  private achievementsPending = new Set<string>();
   /** Áudio/vídeo do jogo que o menu pausou (para voltar a tocar ao fechar). */
   private pausedMedia: HTMLMediaElement[] = [];
   /** Resolve quando o tempo da última partida foi guardado pelo daemon. */
@@ -45,7 +57,8 @@ export class GameFrame {
 
   constructor(
     private readonly onExit: () => void,
-    sounds: Sounds,
+    private readonly sounds: Sounds,
+    private readonly toast: GameToast,
   ) {
     window.addEventListener('message', (event) => this.onMessage(event));
     this.menu = new QuickMenu(sounds, {
@@ -63,7 +76,11 @@ export class GameFrame {
   open(cartridge: CartridgeInfo, profile: Profile | null): void {
     const profileId = profile?.id ?? null;
     this.current = cartridge;
+    this.profileId = profileId;
     this.menu.setGame(cartridge, profile);
+    this.publishAchievements(new Set());
+    this.achievementsPending.clear();
+    void this.loadAchievements(cartridge, profileId);
     // O Guide só conta depois de solto uma vez (não abre o menu se já estava apertado).
     this.guideWasDown = true;
     this.loadingText.textContent = `Carregando ${cartridge.manifest.name}…`;
@@ -90,6 +107,8 @@ export class GameFrame {
     if (!this.current) return;
     this.menu.hide();
     this.menu.setGame(null, null);
+    this.publishAchievements(new Set());
+    this.profileId = null;
     this.pausedMedia = [];
     void this.saveNow();
     this.lastPlaytimeSaved = this.playtime.stop();
@@ -204,6 +223,60 @@ export class GameFrame {
     if (data?.source !== 'playzin-sdk') return;
     if (data.type === 'ready') this.reveal();
     if (data.type === 'exit') this.requestExit();
+    if (data.type === 'achievement' && typeof data.id === 'string') void this.unlockAchievement(data.id);
+  }
+
+  // ---------------------------------------------------------------- conquistas
+
+  private publishAchievements(ids: Set<string>): void {
+    this.achievements = ids;
+    (window as unknown as { __playzinAchievements?: string[] }).__playzinAchievements = [...ids];
+  }
+
+  /** O que o perfil já desbloqueou neste jogo (para isAchievementUnlocked e o menu rápido). */
+  private async loadAchievements(cartridge: CartridgeInfo, profileId: string | null): Promise<void> {
+    if (!profileId || !cartridge.manifest.achievements?.length) return this.menu.setAchievements(0, 0);
+    try {
+      const url = `/api/achievements/game/${encodeURIComponent(cartridge.manifest.id)}?profile=${encodeURIComponent(profileId)}`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error(String(res.status));
+      const game = (await res.json()) as GameAchievements;
+      if (this.current !== cartridge) return;
+      const ids = new Set(game.achievements.filter((a) => a.unlockedAt).map((a) => a.id));
+      for (const id of this.achievements) ids.add(id); // desbloqueadas enquanto carregava
+      this.publishAchievements(ids);
+      this.menu.setAchievements(ids.size, cartridge.manifest.achievements.length);
+    } catch {
+      this.menu.setAchievements(this.achievements.size, cartridge.manifest.achievements.length);
+    }
+  }
+
+  private async unlockAchievement(id: string): Promise<void> {
+    const cartridge = this.current;
+    const profileId = this.profileId;
+    if (!cartridge || !profileId || this.achievements.has(id) || this.achievementsPending.has(id)) return;
+    this.achievementsPending.add(id);
+    try {
+      const url = `/api/achievements/${encodeURIComponent(profileId)}/${encodeURIComponent(cartridge.manifest.id)}`;
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) });
+      const body = (await res.json().catch(() => ({}))) as Partial<AchievementUnlock> & { error?: string };
+      if (!res.ok || !body.achievement) {
+        // Erro de quem fez o jogo (conquista fora do playzin.json): só no console do navegador.
+        console.warn(`[conquistas] ${body.error ?? `erro ${res.status}`}`);
+        return;
+      }
+      if (this.current !== cartridge) return;
+      this.publishAchievements(new Set([...this.achievements, id]));
+      this.menu.setAchievements(body.unlocked ?? this.achievements.size, body.total ?? 0);
+      if (body.isNew) {
+        this.sounds.achievement();
+        this.toast.achievement(body.achievement.name, body.unlocked ?? 0, body.total ?? 0);
+      }
+    } catch (err) {
+      console.warn(`[conquistas] ${(err as Error).message}`);
+    } finally {
+      this.achievementsPending.delete(id);
+    }
   }
 
   /** O jogo é da mesma origem, então dá para escutar o teclado dentro do iframe. */

@@ -30,6 +30,9 @@ function fitStage(): void {
 window.addEventListener('resize', fitStage);
 fitStage();
 
+// ---- Avisos por cima do jogo (bateria fraca, conquistas) ----
+const gameToast = new GameToast();
+
 // ---- Jogo do cartucho (iframe) ----
 const frame = new GameFrame(() => {
   // Voltou do jogo pelo atalho ou pelo SDK: o cartucho continua inserido.
@@ -38,8 +41,8 @@ const frame = new GameFrame(() => {
   sounds.back();
   const { cartridge } = store.get();
   store.update({ status: cartridge ? 'ready' : 'empty' });
-}, sounds);
-fitStage(); // o menu rápido acabou de entrar na página
+}, sounds, gameToast);
+fitStage(); // o menu rápido e o aviso por cima do jogo acabaram de entrar na página
 
 function play(cartridge: CartridgeInfo): void {
   if (frame.isOpen) return;
@@ -61,8 +64,6 @@ function stopPlaying(): void {
 const home = new HomeUI(stage, store, library, sounds, { play });
 
 // ---- Bateria fraca: avisa no menu ou por cima do jogo ----
-const gameToast = new GameToast();
-fitStage(); // o aviso por cima do jogo usa o mesmo palco escalado
 const lowBattery = new LowBatteryWatcher((device) => {
   const text = `Bateria fraca: ${device.name} (${device.battery}%)`;
   sounds.error();
