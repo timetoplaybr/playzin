@@ -2265,3 +2265,267 @@ svg {
   color: var(--muted);
   font-size: 15px;
 }
+
+/* ---------- capturas de tela ---------- */
+
+/* Clarão de câmera por cima do jogo, na hora da captura. */
+.capture-flash {
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.capture-flash.on {
+  animation: capture-flash 0.35s ease-out;
+}
+
+@keyframes capture-flash {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.toast.capture {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 26px 10px 10px;
+  border-radius: 16px;
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.shot-toast-img {
+  width: 96px;
+  height: 54px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #000;
+}
+
+.toast.capture .ach-toast-text small {
+  color: var(--accent-2);
+}
+
+/* Álbum: painel maior que os outros (a grade de fotos precisa de espaço). */
+.panel.album {
+  width: 1000px;
+  max-height: 600px;
+}
+
+.shot-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.shot-head h2 {
+  margin: 0;
+}
+
+.shot-count {
+  padding: 2px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.shot-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  padding: 6px 6px 6px 16px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.shot-filter .glyph {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  font-size: 15px;
+}
+
+.shot-grid {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.shot {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.shot img {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 3px transparent;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+
+.shot.selected img {
+  box-shadow: 0 0 0 4px var(--accent);
+  transform: scale(1.03);
+}
+
+.shot.confirming img {
+  box-shadow: 0 0 0 4px var(--danger);
+}
+
+.shot-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  color: var(--muted);
+}
+
+.shot.selected .shot-label {
+  color: var(--text);
+}
+
+.shot.confirming .shot-label {
+  color: #ffb3b3;
+}
+
+/* Foto aberta */
+.panel.album.viewing {
+  overflow: hidden;
+}
+
+.panel h2 .shot-pos {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.shot-view {
+  position: relative;
+  display: grid;
+  place-items: center;
+  height: 400px;
+  margin: -8px 0 16px;
+  border-radius: 12px;
+  background: #000;
+}
+
+.shot-view img {
+  display: block;
+  max-width: 100%;
+  max-height: 400px; /* a altura da .shot-view (100% não vale dentro do grid) */
+  border-radius: 12px;
+}
+
+.shot-nav {
+  position: absolute;
+  top: 50%;
+  width: 48px;
+  height: 48px;
+  padding: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(20, 21, 24, 0.7);
+  color: var(--text);
+  transform: translateY(-50%);
+  cursor: pointer;
+}
+
+.shot-nav svg {
+  width: 100%;
+  height: 100%;
+}
+
+.shot-nav:disabled {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.shot-prev {
+  left: 12px;
+}
+
+.shot-next {
+  right: 12px;
+}
+
+.shot-next svg {
+  transform: scaleX(-1);
+}
+
+.shot-caption {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  min-height: 44px;
+  font-size: 18px;
+  color: var(--muted);
+}
+
+.shot-caption.confirming {
+  color: #ffb3b3;
+}
+
+.shot-who {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.shot-avatar {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+}
+
+.shot-caption .shot-delete {
+  margin-left: auto;
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.shot-caption .shot-delete:hover,
+.shot-caption.confirming .shot-delete {
+  background: rgba(255, 80, 80, 0.15);
+  color: var(--danger);
+}
+
+.shot-caption .shot-delete svg {
+  width: 100%;
+  height: 100%;
+}

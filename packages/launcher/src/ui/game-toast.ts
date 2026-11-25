@@ -1,21 +1,40 @@
 import { icons } from './icons';
 
 /**
- * Avisos do console por cima do jogo (bateria fraca, conquista desbloqueada), sem pausar nem
+ * Avisos do console por cima do jogo (bateria fraca, conquista, captura de tela), sem pausar nem
  * tirar o foco do jogo. Usa o mesmo palco de 1280x720 da tela inicial (escalado em main.ts).
  * Um aviso por vez: os que chegam juntos esperam na fila (duas conquistas seguidas, por exemplo).
  */
 export class GameToast {
   private readonly toast: HTMLDivElement;
-  private readonly queue: { html: string; kind: 'error' | 'achievement' }[] = [];
+  private readonly flashEl: HTMLDivElement;
+  private readonly queue: { html: string; kind: Kind; done?: () => void }[] = [];
   private showing = false;
 
   constructor() {
     const layer = document.createElement('div');
     layer.id = 'game-toast';
-    layer.innerHTML = '<div class="qm-stage"><div class="toast" role="status"></div></div>';
+    layer.innerHTML = '<div class="capture-flash"></div><div class="qm-stage"><div class="toast" role="status"></div></div>';
     document.body.appendChild(layer);
     this.toast = layer.querySelector('.toast') as HTMLDivElement;
+    this.flashEl = layer.querySelector('.capture-flash') as HTMLDivElement;
+  }
+
+  /** Clarão rápido na tela inteira, como o de uma câmera (a captura acabou de ser tirada). */
+  flash(): void {
+    this.flashEl.classList.remove('on');
+    void this.flashEl.offsetWidth; // reinicia a animação
+    this.flashEl.classList.add('on');
+  }
+
+  /** "Captura salva", com a miniatura. `done` roda quando o aviso sai (para liberar a miniatura). */
+  capture(thumbUrl: string, done?: () => void): void {
+    this.push(
+      `<img class="shot-toast-img" src="${escapeHtml(thumbUrl)}" alt="">` +
+        `<span class="ach-toast-text"><small>Capturas</small>Captura salva</span>`,
+      'capture',
+      done,
+    );
   }
 
   show(text: string): void {
@@ -30,8 +49,8 @@ export class GameToast {
     );
   }
 
-  private push(html: string, kind: 'error' | 'achievement'): void {
-    this.queue.push({ html, kind });
+  private push(html: string, kind: Kind, done?: () => void): void {
+    this.queue.push({ html, kind, done });
     if (!this.showing) this.next();
   }
 
@@ -46,10 +65,15 @@ export class GameToast {
     this.toast.className = `toast visible ${item.kind}`;
     window.setTimeout(() => {
       this.toast.classList.remove('visible');
-      window.setTimeout(() => this.next(), 300); // espera a saída antes do próximo
-    }, item.kind === 'achievement' ? 4000 : 5000);
+      window.setTimeout(() => {
+        item.done?.();
+        this.next();
+      }, 300); // espera a saída antes do próximo
+    }, item.kind === 'error' ? 5000 : item.kind === 'capture' ? 2500 : 4000);
   }
 }
+
+type Kind = 'error' | 'achievement' | 'capture';
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

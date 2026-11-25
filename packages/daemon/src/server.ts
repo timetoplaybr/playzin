@@ -3,7 +3,7 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
-import { CARTRIDGE_URL_PREFIX, WS_PATH, type ClientMessage, type ServerMessage } from '@playzin/shared';
+import { CARTRIDGE_URL_PREFIX, SCREENSHOT_MAX_BYTES, WS_PATH, type ClientMessage, type ServerMessage } from '@playzin/shared';
 import type { CartridgeManager } from './cartridge-manager.js';
 import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
@@ -16,6 +16,7 @@ import type { WifiController } from './wifi/controller.js';
 import { WifiError } from './wifi/types.js';
 import { BluetoothError } from './bluetooth/types.js';
 import { PowerError, type PowerController } from './power.js';
+import { ScreenshotError, type ScreenshotStore } from './screenshot-store.js';
 
 export async function createServer(
   config: DaemonConfig,
@@ -27,6 +28,7 @@ export async function createServer(
   bluetooth: BluetoothController,
   wifi: WifiController,
   power: PowerController,
+  screenshots: ScreenshotStore,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -327,6 +329,56 @@ export async function createServer(
       }
     },
   );
+
+  // ---- Capturas de tela: o launcher tira a foto do jogo e manda para o álbum ----
+  const shotFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    reply.code(err instanceof ScreenshotError ? err.status : 500).send({ error: (err as Error).message });
+
+  app.get('/api/screenshots', async () => ({ screenshots: await screenshots.list() }));
+  app.post<{ Body: { game?: unknown; profile?: unknown; image?: unknown; thumb?: unknown; width?: unknown; height?: unknown } }>(
+    '/api/screenshots',
+    // JPEG em base64 (+ a miniatura): um terço maior que a imagem.
+    { bodyLimit: Math.ceil(SCREENSHOT_MAX_BYTES * 1.4) + 512 * 1024 },
+    async (req, reply) => {
+      const body = req.body ?? {};
+      // Só o jogo do cartucho inserido agora (o nome vem do playzin.json dele).
+      const cartridge = manager.current;
+      if (!cartridge || cartridge.manifest.id !== body.game) {
+        return reply.code(409).send({ error: 'esse jogo não está no console agora' });
+      }
+      if (typeof body.image !== 'string' || typeof body.thumb !== 'string') {
+        return reply.code(400).send({ error: '"image" e "thumb" (JPEG em base64) são obrigatórios' });
+      }
+      const profile = typeof body.profile === 'string' ? (profiles.get(body.profile)?.id ?? null) : null;
+      try {
+        const shot = await screenshots.add(cartridge.manifest, profile, {
+          image: Buffer.from(body.image, 'base64'),
+          thumb: Buffer.from(body.thumb, 'base64'),
+          width: body.width,
+          height: body.height,
+        });
+        req.log.info(`[capturas] ${shot.id} (${cartridge.manifest.id}, ${Math.round(shot.bytes / 1024)} KB)`);
+        return reply.code(201).send(shot);
+      } catch (err) {
+        return shotFail(reply, err);
+      }
+    },
+  );
+  app.get<{ Params: { file: string } }>('/api/screenshots/:file', async (req, reply) => {
+    const match = /^(.+?)(\.thumb)?\.jpg$/.exec(req.params.file);
+    const file = match ? await screenshots.filePath(match[1]!, Boolean(match[2])) : null;
+    if (!file) return reply.code(404).send({ error: 'captura não encontrada' });
+    // O id nunca se repete: a imagem de um endereço não muda.
+    reply.header('Cache-Control', 'private, max-age=31536000, immutable');
+    return reply.sendFile(path.basename(file), path.dirname(file), { cacheControl: false });
+  });
+  app.delete<{ Params: { id: string } }>('/api/screenshots/:id', async (req, reply) => {
+    try {
+      return (await screenshots.remove(req.params.id)) ? reply.code(204).send() : reply.code(404).send({ error: 'captura não encontrada' });
+    } catch (err) {
+      return shotFail(reply, err);
+    }
+  });
 
   // ---- Saves de um perfil: tela "Dados salvos" ----
   app.get<{ Querystring: { profile?: string } }>('/api/saves', async (req, reply) => {

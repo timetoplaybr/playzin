@@ -8,7 +8,7 @@ const MAX_PADS = 8;
 const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
 
-type ItemId = 'resume' | 'restart' | 'quit';
+type ItemId = 'resume' | 'capture' | 'restart' | 'quit';
 
 interface Item {
   id: ItemId;
@@ -20,12 +20,15 @@ interface Item {
 
 const ITEMS: Item[] = [
   { id: 'resume', label: 'Continuar', icon: icons.play },
+  { id: 'capture', label: 'Capturar tela', icon: icons.camera },
   { id: 'restart', label: 'Reiniciar jogo', icon: icons.refresh, confirm: 'Aperte A de novo para reiniciar' },
   { id: 'quit', label: 'Sair do jogo', icon: icons.power, confirm: 'Aperte A de novo para sair' },
 ];
 
 export interface QuickMenuActions {
   resume(): void;
+  /** Volta ao jogo e tira a captura (o menu não aparece nela). */
+  capture(): void;
   restart(): void;
   quit(): void;
 }
@@ -131,6 +134,8 @@ export class QuickMenu {
     if (id === 'resume') {
       this.sounds.back();
       this.actions.resume();
+    } else if (id === 'capture') {
+      this.actions.capture();
     } else if (id === 'restart') {
       this.sounds.launch();
       this.actions.restart();

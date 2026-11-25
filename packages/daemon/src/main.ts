@@ -10,6 +10,7 @@ import { PlaytimeStore } from './playtime-store.js';
 import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
+import { ScreenshotStore } from './screenshot-store.js';
 import { WifiController } from './wifi/controller.js';
 import { MockWifiBackend } from './wifi/mock.js';
 import { NetworkManagerBackend } from './wifi/networkmanager.js';
@@ -31,6 +32,7 @@ async function main(): Promise<void> {
   await profiles.init();
   const playtime = new PlaytimeStore(config.savesDir);
   const achievements = new AchievementStore(config.savesDir);
+  const screenshots = new ScreenshotStore(config.screenshotsDir);
 
   let backend: BluetoothBackend | null = null;
   if (config.bluetooth === 'mock') backend = new MockBackend();
@@ -65,7 +67,7 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power);
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -101,6 +103,7 @@ async function main(): Promise<void> {
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
+  app.log.info(`capturas em: ${config.screenshotsDir}`);
   app.log.info(`perfis: ${profiles.list().map((p) => p.name).join(', ') || 'nenhum ainda'}`);
   app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
   app.log.info(`wi-fi: ${wifiBackend ? (wifiBackend.name === 'mock' ? 'simulado' : 'NetworkManager') : 'indisponível'}`);

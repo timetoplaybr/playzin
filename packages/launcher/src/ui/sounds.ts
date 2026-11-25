@@ -62,6 +62,13 @@ export class Sounds {
     this.tone(1975.5, 0.5, 'sine', 0.18, 0.3);
   }
 
+  /** Captura de tela: obturador de câmera (dois cliques secos, abre e fecha). */
+  shutter(): void {
+    this.click(0, 0.9);
+    this.click(0.07, 0.6);
+    this.tone(2400, 0.03, 'square', 0.06, 0.01);
+  }
+
   /** Desligando: o acorde da abertura, descendo. */
   powerOff(): void {
     const notes = [1046.5, 783.99, 659.25, 523.25]; // dó, sol, mi, dó

@@ -74,6 +74,31 @@ export interface AchievementUnlock {
   total: number;
 }
 
+// ---- Capturas de tela ----
+
+/** Maior captura aceita (JPEG), em bytes. */
+export const SCREENSHOT_MAX_BYTES = 8 * 1024 * 1024;
+/** Quantas capturas o álbum do console guarda. */
+export const SCREENSHOT_MAX_COUNT = 1000;
+export const SCREENSHOT_ID_PATTERN = /^s[0-9a-z]{8,12}-[0-9a-f]{6}$/;
+
+/** Uma captura do álbum do console (GET /api/screenshots). */
+export interface Screenshot {
+  id: string;
+  /** Jogo capturado (id e nome do playzin.json). */
+  game: string;
+  gameName: string;
+  /** Quem estava jogando (pode ser um perfil que já foi excluído). */
+  profile: string | null;
+  takenAt: string;
+  width: number;
+  height: number;
+  bytes: number;
+  /** Endereços da imagem e da miniatura, servidos pelo daemon. */
+  url: string;
+  thumbUrl: string;
+}
+
 /** Cartucho pronto para jogar, como o daemon anuncia ao launcher. */
 export interface CartridgeInfo {
   manifest: CartridgeManifest;

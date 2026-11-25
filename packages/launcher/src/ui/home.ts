@@ -7,6 +7,7 @@ import { VirtualKeyboard } from './keyboard';
 import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
+import { CapturesPanel } from './captures-panel';
 import { PowerPanel } from './power-panel';
 import { PowerScreen } from './power-screen';
 import { applyTheme, restoreTheme, setProfileTheme } from './theme';
@@ -35,7 +36,7 @@ type Tile =
   | { kind: 'recent'; key: string; entry: LibraryEntry }
   | { kind: 'empty'; key: string };
 
-type SystemId = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | 'fullscreen' | 'power';
+type SystemId = 'controllers' | 'wifi' | 'activity' | 'captures' | 'saves' | 'settings' | 'fullscreen' | 'power';
 interface SystemButton {
   id: SystemId;
   label: string;
@@ -48,6 +49,7 @@ function systemButtons(): SystemButton[] {
     { id: 'controllers', label: 'Controles', icon: icons.gamepad },
     { id: 'wifi', label: 'Wi-Fi', icon: icons.wifi },
     { id: 'activity', label: 'Atividade', icon: icons.activity },
+    { id: 'captures', label: 'Capturas', icon: icons.camera },
     { id: 'saves', label: 'Dados salvos', icon: icons.save },
     { id: 'settings', label: 'Configurações', icon: icons.settings },
   ];
@@ -72,7 +74,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'saves' | 'settings' | 'power' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'captures' | 'saves' | 'settings' | 'power' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -94,6 +96,7 @@ export class HomeUI {
   private readonly ctrlPanel: ControllersPanel;
   private readonly wifiPanel: WifiPanel;
   private readonly activityPanel: ActivityPanel;
+  private readonly capturesPanel: CapturesPanel;
   private readonly powerPanel: PowerPanel;
   /** "Desligando…" por cima de tudo. */
   private readonly powerScreen: PowerScreen;
@@ -189,6 +192,13 @@ export class HomeUI {
       library,
       sounds,
       host: () => this.el.panel,
+      hintsChanged: () => this.renderHints(),
+    });
+    this.capturesPanel = new CapturesPanel({
+      store,
+      sounds,
+      host: () => this.el.panel,
+      toast: (text, kind) => this.showToast(text, kind),
       hintsChanged: () => this.renderHints(),
     });
     this.powerPanel = new PowerPanel({
@@ -701,8 +711,10 @@ export class HomeUI {
     if (panel === 'controllers') this.ctrlPanel.open();
     if (panel === 'wifi') this.wifiPanel.open();
     if (panel === 'activity') this.activityPanel.open();
+    if (panel === 'captures') this.capturesPanel.open();
     if (panel === 'power') this.powerPanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
+    this.el.panel.classList.toggle('album', panel === 'captures');
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -718,6 +730,7 @@ export class HomeUI {
     if (!this.panel) return;
     if (this.panel === 'controllers') this.ctrlPanel.close();
     if (this.panel === 'wifi') this.wifiPanel.close();
+    if (this.panel === 'captures') this.capturesPanel.close();
     this.panel = null;
     this.el.backdrop.hidden = true;
     this.sounds.back();
@@ -814,6 +827,8 @@ export class HomeUI {
       this.renderHints();
     } else if (this.panel === 'activity') {
       this.activityPanel.render();
+    } else if (this.panel === 'captures') {
+      this.capturesPanel.render();
     } else if (this.panel === 'power') {
       this.powerPanel.render();
     } else if (this.panel === 'settings') {
@@ -870,6 +885,8 @@ export class HomeUI {
       html = this.wifiPanel.hints(hint);
     } else if (this.panel === 'activity') {
       html = this.activityPanel.hints(hint);
+    } else if (this.panel === 'captures') {
+      html = this.capturesPanel.hints(hint);
     } else if (this.panel === 'power') {
       html = this.powerPanel.hints(hint);
     } else if (this.panel === 'saves') {
@@ -955,6 +972,14 @@ export class HomeUI {
     }
     if (this.panel === 'activity') {
       const result = this.activityPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
+    if (this.panel === 'captures') {
+      const result = this.capturesPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
         repeatPressed: (a) => this.repeatPressed(a),
       });

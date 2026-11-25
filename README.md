@@ -59,7 +59,8 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
 - **Perfil:** o avatar no canto superior esquerdo mostra quem está jogando; suba até ele (ou clique)
   para trocar de perfil. Veja [Perfis](#perfis-até-4-pessoas-por-console).
 - **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Atividade (tempo
-  de jogo do perfil, jogo a jogo, e quanto cada perfil jogou de cada um), Dados salvos (progresso de cada
+  de jogo do perfil, jogo a jogo, e quanto cada perfil jogou de cada um), Capturas (o álbum de
+  capturas de tela, veja [Capturas de tela](#capturas-de-tela)), Dados salvos (progresso de cada
   jogo, com opção de apagar), Configurações (versão, status), Tela cheia (também pela tecla **F**)
   e Desligar (veja [Desligar e reiniciar](#desligar-e-reiniciar)).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
@@ -73,6 +74,7 @@ cima do jogo, com o nome e a capa do jogo, quem está jogando, há quanto tempo 
 controles estão ligados:
 
 - **Continuar:** volta para o jogo (também com B, Esc ou o botão Xbox de novo);
+- **Capturar tela:** volta para o jogo e tira uma captura da tela (o menu não aparece nela);
 - **Reiniciar jogo:** grava os saves e recarrega o jogo do começo (A duas vezes);
 - **Sair do jogo:** volta para a tela inicial (A duas vezes).
 
@@ -87,6 +89,26 @@ o `PlayerInput` não enxerga os botões usados no menu. Nos jogos sem o SDK, o c
 | Voltar / fechar painel | Backspace | B |
 | Remover jogo da lista / editar perfil | L | X |
 | Menu rápido (durante o jogo) | segurar Esc por 1 s | botão Xbox/PS, ou View + Menu por 1 s |
+| Capturar a tela (durante o jogo) | F8 ou Print Screen | View + RB |
+
+### Capturas de tela
+
+Como nos consoles atuais, dá para tirar uma foto da tela do jogo a qualquer momento:
+**View + RB** no controle, **F8** ou **Print Screen** no teclado, ou **Capturar tela** no menu
+rápido. A tela pisca, toca um som de câmera e aparece "Captura salva" com a miniatura.
+
+- **Capturas**, na tela inicial, mostra o álbum: a grade das mais novas para as mais antigas
+  (**Y** filtra por jogo), **A** abre a foto (← → passam para a anterior/próxima, com quem estava
+  jogando e quando) e **X** duas vezes apaga.
+- O álbum é um só para o console (como no Switch): cada captura guarda quem estava jogando, e
+  excluir um perfil não apaga as fotos dele.
+- Os jogos não precisam fazer nada. O console lê o `<canvas>` do jogo (Phaser, Pixi, three.js,
+  canvas 2D), inclusive WebGL, na resolução do próprio jogo: um jogo de 1280×720 sai 1280×720 mesmo
+  numa TV 4K, e pixel art pequena é ampliada sem borrar. Textos e botões feitos em HTML por cima
+  do canvas não entram na captura; jogos feitos só de HTML, sem canvas, não podem ser capturados.
+- Ficam em JPEG em `.playzin-data/screenshots/` no computador e em `/var/lib/playzin/screenshots/` no
+  Pi (imagem, miniatura e um `.json` com jogo, perfil e data). O console guarda até 1000 capturas
+  e para de gravar se o cartão ficar com menos de 200 MB livres (os saves têm prioridade).
 
 ### Desenvolvendo o launcher com hot reload
 
@@ -399,6 +421,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 | `PLAYZIN_POWER` | `auto` (Pi: `logind`) | Desligar/reiniciar pela tela: `auto` (logind só rodando como serviço do systemd; senão simulado), `logind`, `mock` ou `none`. Também `--power=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 | `PLAYZIN_PROFILES_FILE` | `profiles.json` ao lado da pasta de saves | Lista de perfis do console |
+| `PLAYZIN_SCREENSHOTS_DIR` | `screenshots` ao lado da pasta de saves | Álbum de capturas de tela |
 
 ## Status
 
@@ -409,6 +432,8 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
+- [x] Capturas de tela (View + RB, F8, menu rápido) com álbum na tela inicial
+- [ ] Copiar as capturas para um pendrive
 - [ ] Testar a bateria de verdade (BlueZ Battery1 e /sys/class/power_supply) no Raspberry Pi
 - [ ] Testar o desligar/reiniciar de verdade (logind + polkit) no Raspberry Pi
 - [x] Scripts de instalação do Pi (systemd + cage + Chromium + polkit)

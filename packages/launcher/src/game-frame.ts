@@ -8,11 +8,16 @@ import type {
   Profile,
 } from '@playzin/shared';
 import { PlaytimeTracker } from './playtime';
+import { blobToBase64, captureFrame, CaptureError } from './screenshot';
 import { QuickMenu } from './ui/quick-menu';
 import type { GameToast } from './ui/game-toast';
 import type { Sounds } from './ui/sounds';
 
 const HOLD_TO_MENU_MS = 1000;
+/** Intervalo mínimo entre duas capturas (segurar o atalho não vira uma rajada). */
+const CAPTURE_COOLDOWN_MS = 700;
+/** Teclas de captura: Print Screen (teclado do Pi/PC) e F8 (para teclados sem ela, como o do Mac). */
+const CAPTURE_KEYS = ['PrintScreen', 'F8'];
 
 /** O que o script de saves injetado pelo daemon expõe dentro do iframe do jogo. */
 interface GameSaves {
@@ -31,6 +36,9 @@ const READY_FALLBACK_MS = 400;
  *  - botão Xbox/PS (Guide), ou View + Menu segurados por 1 s
  *  - Esc segurado por 1 s
  * O jogo também pode voltar direto ao menu chamando exitToMenu() do SDK.
+ *
+ * Captura de tela (vai para o álbum, em Capturas na tela inicial):
+ *  - View + RB no controle, F8 ou Print Screen no teclado, ou "Capturar tela" no menu rápido
  */
 export class GameFrame {
   private readonly frame = document.getElementById('cartridge-frame') as HTMLIFrameElement;
@@ -45,6 +53,9 @@ export class GameFrame {
   private readonly playtime = new PlaytimeTracker();
   private readonly menu: QuickMenu;
   private guideWasDown = false;
+  private shotComboWasDown = false;
+  private capturing = false;
+  private lastCaptureAt = 0;
   private gameUrl = '';
   private profileId: string | null = null;
   /** Conquistas que o perfil já tem neste jogo (o SDK lê em __playzinAchievements). */
@@ -63,6 +74,10 @@ export class GameFrame {
     window.addEventListener('message', (event) => this.onMessage(event));
     this.menu = new QuickMenu(sounds, {
       resume: () => this.resume(),
+      capture: () => {
+        this.resume();
+        void this.capture();
+      },
       restart: () => void this.restart(),
       quit: () => this.requestExit(),
     });
@@ -83,6 +98,7 @@ export class GameFrame {
     void this.loadAchievements(cartridge, profileId);
     // O Guide só conta depois de solto uma vez (não abre o menu se já estava apertado).
     this.guideWasDown = true;
+    this.shotComboWasDown = true;
     this.loadingText.textContent = `Carregando ${cartridge.manifest.name}…`;
     this.loading.hidden = false;
 
@@ -226,6 +242,44 @@ export class GameFrame {
     if (data.type === 'achievement' && typeof data.id === 'string') void this.unlockAchievement(data.id);
   }
 
+  // ---------------------------------------------------------------- capturas
+
+  /** Tira a foto da tela do jogo e manda para o álbum do console. */
+  private async capture(): Promise<void> {
+    const cartridge = this.current;
+    const now = performance.now();
+    if (!cartridge || this.capturing || !this.loading.hidden || now - this.lastCaptureAt < CAPTURE_COOLDOWN_MS) return;
+    this.capturing = true;
+    this.lastCaptureAt = now;
+    try {
+      const shot = await captureFrame(this.frame);
+      // Como numa câmera: o clarão e o som vêm na hora; gravar no console vem depois.
+      this.sounds.shutter();
+      this.toast.flash();
+      const [image, thumb] = await Promise.all([blobToBase64(shot.image), blobToBase64(shot.thumb)]);
+      const res = await fetch('/api/screenshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ game: cartridge.manifest.id, profile: this.profileId, image, thumb, width: shot.width, height: shot.height }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? `erro ${res.status}`);
+      }
+      if (this.current !== cartridge) return;
+      const thumbUrl = URL.createObjectURL(shot.thumb);
+      this.toast.capture(thumbUrl, () => URL.revokeObjectURL(thumbUrl));
+    } catch (err) {
+      if (this.current !== cartridge) return;
+      this.sounds.error();
+      const message = err instanceof CaptureError ? err.message : `Não foi possível salvar a captura: ${(err as Error).message}`;
+      this.toast.show(message);
+      if (!(err instanceof CaptureError)) console.warn(`[capturas] ${(err as Error).message}`);
+    } finally {
+      this.capturing = false;
+    }
+  }
+
   // ---------------------------------------------------------------- conquistas
 
   private publishAchievements(ids: Set<string>): void {
@@ -284,12 +338,24 @@ export class GameFrame {
     this.detachKeyboard?.();
     const win = this.frame.contentWindow;
     if (!win) return;
+    let printDown = false;
     const down = (e: KeyboardEvent) => {
+      if (CAPTURE_KEYS.includes(e.code)) {
+        e.preventDefault();
+        if (e.code === 'PrintScreen') printDown = true;
+        if (!e.repeat && !this.menu.isOpen) void this.capture();
+        return;
+      }
       if (e.code !== 'Escape' || this.escSince !== null) return;
       this.escSince = performance.now();
       this.escTimer = window.setTimeout(() => this.openMenu(), HOLD_TO_MENU_MS);
     };
     const up = (e: KeyboardEvent) => {
+      // No Windows, o Print Screen só chega no keyup (o sistema fica com o keydown).
+      if (e.code === 'PrintScreen') {
+        if (!printDown && !this.menu.isOpen) void this.capture();
+        printDown = false;
+      }
       if (e.code !== 'Escape') return;
       this.escSince = null;
       window.clearTimeout(this.escTimer);
@@ -318,12 +384,16 @@ export class GameFrame {
       const now = performance.now();
       let guide = false;
       let combo = false;
+      let shotCombo = false;
       for (const pad of getConnectedGamepads()) {
         if (pad.buttons[GamepadButton.GUIDE]?.pressed) guide = true;
         if (pad.buttons[GamepadButton.VIEW]?.pressed && pad.buttons[GamepadButton.MENU]?.pressed) combo = true;
+        if (pad.buttons[GamepadButton.VIEW]?.pressed && pad.buttons[GamepadButton.RB]?.pressed) shotCombo = true;
       }
       const guidePressed = guide && !this.guideWasDown;
       this.guideWasDown = guide;
+      const shotPressed = shotCombo && !this.shotComboWasDown;
+      this.shotComboWasDown = shotCombo;
 
       if (this.menu.isOpen) {
         // Guide de novo fecha o menu e volta ao jogo, como nos consoles.
@@ -336,6 +406,7 @@ export class GameFrame {
         return;
       }
       if (guidePressed) return this.openMenu();
+      if (shotPressed) void this.capture();
       if (combo) {
         this.comboSince ??= now;
         if (now - this.comboSince >= HOLD_TO_MENU_MS) this.openMenu();

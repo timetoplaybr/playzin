@@ -30,6 +30,7 @@ export const icons = {
   trophy: svg('<path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4"/><path d="M12 13v4M8.5 20h7M9.5 17h5"/>'),
   lockSmall: svg('<rect x="6" y="11" width="12" height="9" rx="2"/><path d="M9 11V8a3 3 0 0 1 6 0v3"/>'),
   play: svg('<path d="M7 4.5v15l12-7.5z"/>'),
+  camera: svg('<path d="M3 8a2 2 0 0 1 2-2h2.5l1.5-2h6l1.5 2H19a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><circle cx="12" cy="13" r="3.5"/>'),
   insert: svg('<path d="M12 3v11"/><path d="M8 10l4 4 4-4"/><path d="M5 17v3h14v-3"/>'),
 };
 
