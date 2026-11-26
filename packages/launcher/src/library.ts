@@ -1,10 +1,14 @@
-import type { CartridgeInfo } from '@playzin/shared';
+import type { CartridgeInfo, CartridgeManifest } from '@playzin/shared';
 
 /** Um jogo que já passou pelo console (mesmo que o cartucho não esteja inserido agora). */
 export interface LibraryEntry {
   id: string;
   name: string;
   version: string;
+  /** Do playzin.json, para a página de detalhes funcionar sem o cartucho. */
+  description?: string;
+  author?: string;
+  players?: CartridgeManifest['players'];
   /** Capa guardada como data URL, para aparecer mesmo sem o cartucho. */
   cover?: string;
   lastSeen: number;
@@ -53,6 +57,9 @@ export class Library {
       id: manifest.id,
       name: manifest.name,
       version: manifest.version,
+      description: manifest.description,
+      author: manifest.author,
+      players: manifest.players,
       lastSeen: Date.now(),
     };
     this.entries.set(manifest.id, entry);

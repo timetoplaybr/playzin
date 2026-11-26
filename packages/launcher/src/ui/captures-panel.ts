@@ -33,12 +33,13 @@ export class CapturesPanel {
 
   constructor(private readonly deps: Deps) {}
 
-  open(): void {
+  /** `game`: abre já filtrado neste jogo (a página de detalhes do jogo usa). */
+  open(game: string | null = null): void {
     this.shots = null;
     this.failed = false;
     this.index = 0;
     this.viewing = false;
-    this.game = null;
+    this.game = game;
     this.confirmDelete = null;
     void this.load();
   }

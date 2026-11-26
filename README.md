@@ -60,6 +60,13 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
 
 - **Fileira de jogos:** o cartucho inserido aparece primeiro; os jogos que já passaram pelo
   console ficam logo depois, esmaecidos, pedindo para inserir o cartucho.
+- **Página do jogo:** **Y** num jogo (ou **A** num jogo sem o cartucho) abre a página de detalhes:
+  capa, nome, autor, versão, quantos jogadores, se o cartucho está no console e a descrição (do
+  `playzin.json`); do perfil ativo, tempo jogado, partidas, última vez, conquistas e progresso salvo;
+  a lista de conquistas e as últimas capturas. Ações (← →, A): **Jogar**, **Ver capturas** (o álbum
+  já filtrado no jogo; B volta para a página), **Apagar progresso** e **Remover da lista** (essas
+  duas pedem A duas vezes). ↑ ↓ rolam a página. Funciona com o cartucho fora: o console guarda os
+  dados do jogo quando ele entra.
 - **Perfil:** o avatar no canto superior esquerdo mostra quem está jogando; suba até ele (ou clique)
   para trocar de perfil. Veja [Perfis](#perfis-até-4-pessoas-por-console).
 - **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Atividade (tempo
@@ -103,6 +110,7 @@ o `PlayerInput` não enxerga os botões usados no menu. Nos jogos sem o SDK, o c
 | Navegar | setas / WASD | direcional ou analógico |
 | Jogar / OK | Enter / Espaço | A |
 | Voltar / fechar painel | Backspace | B |
+| Página do jogo (detalhes) | I | Y |
 | Remover jogo da lista / editar perfil | L | X |
 | Menu rápido (durante o jogo) | segurar Esc por 1 s | botão Xbox/PS, ou View + Menu por 1 s |
 | Capturar a tela (durante o jogo) | F8 ou Print Screen | View + RB |
@@ -502,6 +510,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
 - [x] Protetor de tela (no menu e jogando, com o tempo escolhido em Configurações)
 - [x] Celular como controle (QR code na TV, até 4, em todos os jogos)
+- [x] Página de detalhes do jogo (dados do cartucho, números do perfil, conquistas, capturas)
 - [ ] Testar o celular como controle com celulares de verdade (Android e iPhone) no Raspberry Pi
 - [x] Remapear botões (para todos os controles ou por modelo; vale em todos os jogos e nos menus)
 - [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)

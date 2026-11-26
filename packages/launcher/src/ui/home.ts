@@ -8,6 +8,7 @@ import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
 import { CapturesPanel } from './captures-panel';
+import { GamePage } from './game-page';
 import { TrophiesPanel } from './trophies-panel';
 import { PowerPanel } from './power-panel';
 import { PowerScreen } from './power-screen';
@@ -77,7 +78,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | 'game' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -103,6 +104,10 @@ export class HomeUI {
   private readonly activityPanel: ActivityPanel;
   private readonly capturesPanel: CapturesPanel;
   private readonly trophiesPanel: TrophiesPanel;
+  /** Página de detalhes do jogo (Y no jogo, ou A num jogo sem o cartucho). */
+  private readonly gamePage: GamePage;
+  /** Ao fechar o álbum aberto pela página do jogo, volta para ela. */
+  private returnToGame: string | null = null;
   private readonly powerPanel: PowerPanel;
   /** "Desligando…" por cima de tudo. */
   private readonly powerScreen: PowerScreen;
@@ -206,6 +211,21 @@ export class HomeUI {
       sounds,
       host: () => this.el.panel,
       hintsChanged: () => this.renderHints(),
+    });
+    this.gamePage = new GamePage({
+      store,
+      library,
+      sounds,
+      host: () => this.el.panel,
+      toast: (text, kind) => this.showToast(text, kind),
+      hintsChanged: () => this.renderHints(),
+      play: (cartridge) => this.actions.play(cartridge),
+      openCaptures: (gameId) => {
+        this.closePanel(true);
+        this.returnToGame = gameId;
+        this.openPanel('captures', gameId);
+      },
+      closed: () => this.closePanel(true),
     });
     this.capturesPanel = new CapturesPanel({
       store,
@@ -384,6 +404,7 @@ export class HomeUI {
     this.renderPlaytime();
     if (this.panel === 'saves' || this.panel === 'settings') this.renderPanel();
     if (this.panel === 'activity') this.activityPanel.reload();
+    if (this.panel === 'game') this.gamePage.reload();
     if (this.panel === 'trophies') this.trophiesPanel.reload();
   }
 
@@ -438,6 +459,8 @@ export class HomeUI {
     }
 
     this.renderTiles(justInserted);
+    // Cartucho entrou ou saiu com a página do jogo aberta: muda o "no console" e o botão Jogar.
+    if (this.panel === 'game' && state.cartridge !== prev.cartridge) this.gamePage.render();
     this.renderStatus();
     if (state.profiles !== prev.profiles || state.profileId !== prev.profileId) {
       this.renderProfile();
@@ -653,9 +676,7 @@ export class HomeUI {
       this.focusedTileNode()?.classList.add('launching');
       window.setTimeout(() => this.actions.play(tile.cartridge), 220);
     } else if (tile.kind === 'recent') {
-      this.sounds.error();
-      this.shakeFocused();
-      this.showToast(`Insira o cartucho de “${tile.entry.name}” para jogar`);
+      this.openGame(tile.entry.id);
     } else {
       this.sounds.error();
       this.shakeFocused();
@@ -664,6 +685,19 @@ export class HomeUI {
   }
 
   /** X / L: remove da lista um jogo cujo cartucho não está inserido. */
+  /** Y num jogo da fileira: a página de detalhes dele. */
+  private openGameDetails(): void {
+    const tile = this.tiles[this.tileIndex];
+    if (this.row !== 'tiles' || !tile || tile.kind === 'empty') return;
+    this.openGame(tile.kind === 'cartridge' ? tile.cartridge.manifest.id : tile.entry.id);
+  }
+
+  private openGame(gameId: string): void {
+    this.sounds.select();
+    this.returnToGame = null;
+    this.openPanel('game', gameId);
+  }
+
   private secondaryAction(): void {
     const tile = this.tiles[this.tileIndex];
     if (this.row !== 'tiles' || tile?.kind !== 'recent') return;
@@ -723,17 +757,20 @@ export class HomeUI {
 
   // ---------------------------------------------------------------- painéis
 
-  private openPanel(panel: Exclude<Panel, null>): void {
+  private openPanel(panel: Exclude<Panel, null>, gameId: string | null = null): void {
     this.panel = panel;
+    this.el.panel.scrollTop = 0;
+    if (panel === 'game' && gameId) this.gamePage.open(gameId);
     if (panel === 'controllers') this.ctrlPanel.open();
     if (panel === 'wifi') this.wifiPanel.open();
     if (panel === 'activity') this.activityPanel.open();
-    if (panel === 'captures') this.capturesPanel.open();
+    if (panel === 'captures') this.capturesPanel.open(gameId);
     if (panel === 'trophies') this.trophiesPanel.open();
     if (panel === 'power') this.powerPanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
     this.el.panel.classList.toggle('album', panel === 'captures');
     this.el.panel.classList.toggle('trophies', panel === 'trophies');
+    this.el.panel.classList.toggle('game-page', panel === 'game');
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -745,15 +782,22 @@ export class HomeUI {
     this.renderHints();
   }
 
-  private closePanel(): void {
+  /** `quiet`: troca de tela por dentro (sem o som de "voltar" e sem voltar para a página do jogo). */
+  private closePanel(quiet = false): void {
     if (!this.panel) return;
-    if (this.panel === 'controllers') this.ctrlPanel.close();
-    if (this.panel === 'wifi') this.wifiPanel.close();
-    if (this.panel === 'captures') this.capturesPanel.close();
+    const closing = this.panel;
+    if (closing === 'controllers') this.ctrlPanel.close();
+    if (closing === 'wifi') this.wifiPanel.close();
+    if (closing === 'captures') this.capturesPanel.close();
+    if (closing === 'game') this.gamePage.close();
     this.panel = null;
     this.el.backdrop.hidden = true;
-    this.sounds.back();
+    if (!quiet) this.sounds.back();
     this.renderHints();
+    // Saiu do álbum que a página do jogo abriu: volta para a página.
+    const back = this.returnToGame;
+    this.returnToGame = null;
+    if (!quiet && closing === 'captures' && back) this.openPanel('game', back);
   }
 
   private async loadSaves(): Promise<void> {
@@ -848,6 +892,8 @@ export class HomeUI {
       this.activityPanel.render();
     } else if (this.panel === 'trophies') {
       this.trophiesPanel.render();
+    } else if (this.panel === 'game') {
+      this.gamePage.render();
     } else if (this.panel === 'captures') {
       this.capturesPanel.render();
     } else if (this.panel === 'power') {
@@ -923,6 +969,8 @@ export class HomeUI {
       html = this.activityPanel.hints(hint);
     } else if (this.panel === 'trophies') {
       html = this.trophiesPanel.hints(hint);
+    } else if (this.panel === 'game') {
+      html = this.gamePage.hints(hint);
     } else if (this.panel === 'captures') {
       html = this.capturesPanel.hints(hint);
     } else if (this.panel === 'power') {
@@ -939,8 +987,8 @@ export class HomeUI {
       html = hint('A', 'OK');
     } else {
       const tile = this.tiles[this.tileIndex];
-      if (tile?.kind === 'cartridge') html = hint('A', 'Jogar');
-      else if (tile?.kind === 'recent') html = hint('X', 'Remover da lista') + hint('A', 'OK');
+      if (tile?.kind === 'cartridge') html = hint('Y', 'Detalhes') + hint('A', 'Jogar');
+      else if (tile?.kind === 'recent') html = hint('X', 'Remover da lista') + hint('A', 'Detalhes');
       else html = hint('A', 'OK');
     }
     this.el.hints.innerHTML = html;
@@ -1041,6 +1089,14 @@ export class HomeUI {
       if (result === 'close') this.closePanel();
       return;
     }
+    if (this.panel === 'game') {
+      const result = this.gamePage.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
     if (this.panel === 'captures') {
       const result = this.capturesPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
@@ -1099,6 +1155,7 @@ export class HomeUI {
     }
     if (this.input.justPressed('confirm')) this.activate();
     if (this.input.justPressed('action')) this.secondaryAction();
+    if (this.input.justPressed('special')) this.openGameDetails();
   };
 
   /** Direcional com repetição ao segurar (como em qualquer menu de console). */
