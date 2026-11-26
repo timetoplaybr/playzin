@@ -45,8 +45,9 @@ jobs:
           cat release-notes.txt
 
       - run: npm ci
-      - run: npm run typecheck
+      # O build vem antes do typecheck: os pacotes conferem os tipos contra o shared e o sdk compilados.
       - run: npm run build
+      - run: npm run typecheck
 
       - name: Pacote assinado
         env:

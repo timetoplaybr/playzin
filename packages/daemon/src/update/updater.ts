@@ -356,7 +356,9 @@ export class Updater extends EventEmitter<UpdaterEvents> {
     await fs.rm(temp, { recursive: true, force: true });
     await fs.mkdir(temp, { recursive: true });
     try {
-      await run('tar', ['-xzf', file, '-C', temp]);
+      // No Windows (só nos testes), o tar do Windows: o do Git lê "C:\..." como endereço de rede.
+      const tar = process.platform === 'win32' ? path.join(process.env.SystemRoot ?? 'C:\\Windows', 'System32', 'tar.exe') : 'tar';
+      await run(tar, ['-xzf', file, '-C', temp]);
       const pkg = await readJson<{ version?: string }>(path.join(temp, 'package.json'));
       if (pkg?.version !== m.version || !(await exists(path.join(temp, 'packages/daemon/dist/main.js')))) {
         throw new UpdateError('O pacote baixado não é uma versão completa do Playzin: não vou instalar.');

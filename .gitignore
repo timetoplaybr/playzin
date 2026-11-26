@@ -9,4 +9,7 @@ dev-slot/*
 .playzin-data/
 
 # Pacote de versão montado por scripts/release/build-release.mjs
-release/
+/release/
+
+# Chaves
+*.pem
