@@ -6,6 +6,7 @@ import { ConsoleStore } from './store';
 import { HomeUI, STAGE_HEIGHT, STAGE_WIDTH } from './ui/home';
 import { LowBatteryWatcher } from './ui/battery';
 import { GameToast } from './ui/game-toast';
+import { Screensaver } from './ui/screensaver';
 import { Sounds } from './ui/sounds';
 import { restoreTheme } from './ui/theme';
 import './style.css';
@@ -61,7 +62,16 @@ function stopPlaying(): void {
   void frame.lastPlaytimeSaved.then(() => home.refreshPlaytime());
 }
 
-const home = new HomeUI(stage, store, library, sounds, { play });
+// ---- Protetor de tela: no menu e por cima do jogo (que fica pausado enquanto isso) ----
+const screensaver = new Screensaver({
+  isPlaying: () => frame.isOpen,
+  onStart: () => frame.suspend(),
+  onEnd: () => frame.unsuspend(),
+});
+frame.onGameWindow = (win) => screensaver.watchGame(win);
+frame.inputBlocked = () => screensaver.blocksInput;
+
+const home = new HomeUI(stage, store, library, sounds, { play, screensaver });
 
 // ---- Bateria fraca: avisa no menu ou por cima do jogo ----
 const lowBattery = new LowBatteryWatcher((device) => {

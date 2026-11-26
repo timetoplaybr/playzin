@@ -65,6 +65,12 @@ export class GameFrame {
   private pausedMedia: HTMLMediaElement[] = [];
   /** Resolve quando o tempo da última partida foi guardado pelo daemon. */
   lastPlaytimeSaved: Promise<void> = Promise.resolve();
+  /** A janela do jogo carregou (ou fechou: null). O protetor de tela escuta o teclado de lá. */
+  onGameWindow: (win: Window | null) => void = () => undefined;
+  /** Os atalhos do controle (Guide, capturas) devem ser ignorados agora? (Protetor de tela.) */
+  inputBlocked: () => boolean = () => false;
+  /** Pausado pelo protetor de tela (e não pelo menu rápido). */
+  private suspended = false;
 
   constructor(
     private readonly onExit: () => void,
@@ -110,6 +116,7 @@ export class GameFrame {
     this.frame.onload = () => {
       this.attachKeyboard();
       this.playtime.watchWindow(this.frame.contentWindow);
+      this.onGameWindow(this.frame.contentWindow);
       // Jogos sem o SDK nunca mandam "ready": mostramos mesmo assim.
       window.setTimeout(() => this.reveal(), READY_FALLBACK_MS);
     };
@@ -137,6 +144,8 @@ export class GameFrame {
     this.comboSince = this.escSince = null;
     // about:blank descarrega o jogo de verdade (para áudio, timers, WebGL).
     this.frame.onload = null;
+    this.suspended = false;
+    this.onGameWindow(null);
     this.frame.src = 'about:blank';
     this.frame.hidden = true;
     this.loading.hidden = true;
@@ -184,6 +193,23 @@ export class GameFrame {
     this.frame.blur();
     window.focus();
     this.menu.open();
+  }
+
+  /** Protetor de tela ligou: pausa o jogo como o menu rápido faz (se o menu já não pausou). */
+  suspend(): void {
+    if (!this.current || this.menu.isOpen || this.suspended) return;
+    this.suspended = true;
+    this.post('pause');
+    this.pauseMedia();
+  }
+
+  /** Protetor de tela desligou: retoma, um instante depois (o botão que acordou não vaza para o jogo). */
+  unsuspend(): void {
+    if (!this.suspended) return;
+    this.suspended = false;
+    window.setTimeout(() => {
+      if (this.current && !this.menu.isOpen && !this.suspended) this.resume();
+    }, 300);
   }
 
   private resume(): void {
@@ -394,6 +420,11 @@ export class GameFrame {
       this.guideWasDown = guide;
       const shotPressed = shotCombo && !this.shotComboWasDown;
       this.shotComboWasDown = shotCombo;
+      // Protetor de tela ligado (ou acabou de acordar): o aperto que acorda não abre nem captura nada.
+      if (this.inputBlocked()) {
+        this.comboSince = null;
+        return;
+      }
 
       if (this.menu.isOpen) {
         // Guide de novo fecha o menu e volta ao jogo, como nos consoles.

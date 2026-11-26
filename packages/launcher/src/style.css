@@ -2715,3 +2715,121 @@ svg {
 .tro-empty {
   padding: 12px 4px;
 }
+
+/* ---------- protetor de tela ---------- */
+
+#screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* por cima de tudo: jogo, menu rápido, avisos */
+  background: #000;
+  opacity: 0;
+  transition: opacity 1.5s ease;
+  cursor: none;
+}
+
+#screensaver[hidden] {
+  display: none;
+}
+
+#screensaver.on {
+  opacity: 1;
+}
+
+.ss-clock {
+  position: absolute;
+  color: rgba(255, 255, 255, 0.55); /* fraco de propósito: é para descansar a tela */
+  opacity: 0;
+  transition: opacity 0.9s ease;
+  white-space: nowrap;
+}
+
+.ss-clock.shown {
+  opacity: 1;
+}
+
+.ss-time {
+  font-size: 9vmin;
+  font-weight: 300;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.ss-date {
+  margin-top: 1.2vmin;
+  font-size: 2.6vmin;
+}
+
+.ss-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.8vmin;
+  margin-top: 2.4vmin;
+  font-size: 2vmin;
+  font-weight: 700;
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.ss-brand svg {
+  width: 2.4vmin;
+  height: 2.4vmin;
+}
+
+/* Configurações: a linha do protetor de tela (←/→ muda) */
+
+.setting-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 6px;
+  margin: 0 0 24px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.setting-row.selected {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+
+.setting-name {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.setting-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+}
+
+.setting-choice b {
+  min-width: 110px;
+  text-align: center;
+  color: var(--accent-2);
+}
+
+.setting-choice button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--line);
+  color: var(--text);
+}
+
+.setting-choice button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.setting-choice .sc-next svg {
+  transform: scaleX(-1);
+}
+
+.setting-help {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 16px;
+}

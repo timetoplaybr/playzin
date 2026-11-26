@@ -16,6 +16,7 @@ import { formatPlaytime } from '../playtime';
 import { signalIcon, WifiPanel } from './wifi-panel';
 import { batteryIcon, connectedPads, isLow } from './battery';
 import { icons } from './icons';
+import { SCREENSAVER_OPTIONS, screensaverLabel, type Screensaver } from './screensaver';
 import type { Sounds } from './sounds';
 
 export const STAGE_WIDTH = 1280;
@@ -80,6 +81,8 @@ type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'sa
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
+  /** Protetor de tela (o menu não responde enquanto ele está na tela; o tempo é escolhido em Configurações). */
+  screensaver: Screensaver;
 }
 
 /**
@@ -850,6 +853,19 @@ export class HomeUI {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
         <h2>${icons.settings} Configurações</h2>
+        <div class="setting-row selected">
+          <span class="setting-name">Protetor de tela</span>
+          <span class="setting-choice">
+            <button class="sc-prev" title="Menos tempo">${icons.chevronLeft}</button>
+            <b>${screensaverLabel(this.actions.screensaver.setting)}</b>
+            <button class="sc-next" title="Mais tempo">${icons.chevronLeft}</button>
+          </span>
+          <span class="setting-help">${
+            this.actions.screensaver.setting === 0
+              ? 'A tela nunca escurece sozinha. Cuidado com TVs OLED.'
+              : 'Sem ninguém mexer nesse tempo, a tela escurece e mostra só o relógio. Jogando, espera pelo menos 15 minutos.'
+          }</span>
+        </div>
         <dl class="info">
           <dt>Versão</dt><dd>Playzin ${VERSION}</dd>
           <dt>Perfil</dt><dd>${escapeHtml(this.store.profile()?.name ?? 'Nenhum')} · ${this.store.get().profiles?.length ?? 0} de 4 no console</dd>
@@ -860,6 +876,8 @@ export class HomeUI {
           <dt>Jogos na lista</dt><dd>${this.library.list().length}</dd>
           <dt>Resolução</dt><dd>${window.innerWidth}×${window.innerHeight}</dd>
         </dl>`;
+      this.el.panel.querySelector('.sc-prev')?.addEventListener('click', () => this.changeScreensaver(-1));
+      this.el.panel.querySelector('.sc-next')?.addEventListener('click', () => this.changeScreensaver(1));
     }
   }
 
@@ -908,6 +926,8 @@ export class HomeUI {
       html = this.powerPanel.hints(hint);
     } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
+    } else if (this.panel === 'settings') {
+      html = hint('↔', 'Protetor de tela') + hint('X', 'Ver agora') + hint('B', 'Voltar');
     } else if (this.panel) {
       html = hint('B', 'Voltar');
     } else if (this.row === 'profile') {
@@ -921,6 +941,16 @@ export class HomeUI {
       else html = hint('A', 'OK');
     }
     this.el.hints.innerHTML = html;
+  }
+
+  /** ←/→ em Configurações: tempo do protetor de tela. */
+  private changeScreensaver(delta: number): void {
+    const current = SCREENSAVER_OPTIONS.indexOf(this.actions.screensaver.setting);
+    const next = clamp(current + delta, 0, SCREENSAVER_OPTIONS.length - 1);
+    if (next === current) return;
+    this.actions.screensaver.set(SCREENSAVER_OPTIONS[next]!);
+    this.sounds.move();
+    this.renderPanel();
   }
 
   private updateClock(): void {
@@ -959,6 +989,11 @@ export class HomeUI {
     if (!this.active) return;
     this.input.update();
     if (++this.frame % 30 === 0) this.updatePads();
+    // Protetor de tela na tela (ou acabou de acordar): o aperto que acorda não faz nada no menu.
+    if (this.actions.screensaver.blocksInput) {
+      this.held = null;
+      return;
+    }
     // Desligando: nada responde (no simulado, com a tela "apagada", qualquer botão liga de novo).
     if (this.powerScreen.isOpen) {
       if (SKIP_ACTIONS.some((a) => this.input.justPressed(a))) this.powerScreen.wake();
@@ -1041,6 +1076,13 @@ export class HomeUI {
           this.renderPanel();
         }
       }
+      return;
+    }
+    if (this.panel === 'settings') {
+      if (this.input.justPressed('back') || this.input.justPressed('confirm')) return this.closePanel();
+      if (this.repeatPressed('left')) this.changeScreensaver(-1);
+      if (this.repeatPressed('right')) this.changeScreensaver(1);
+      if (this.input.justPressed('action')) this.actions.screensaver.start();
       return;
     }
     if (this.panel) {

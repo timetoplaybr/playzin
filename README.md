@@ -65,11 +65,23 @@ Playzin aparece letra por letra e toca um acorde. Qualquer botão, tecla ou cliq
 - **Ícones de sistema:** Controles (pareamento Bluetooth), Wi-Fi (escolher a rede), Atividade (tempo
   de jogo do perfil, jogo a jogo, e quanto cada perfil jogou de cada um), Capturas (o álbum de
   capturas de tela, veja [Capturas de tela](#capturas-de-tela)), Dados salvos (progresso de cada
-  jogo, com opção de apagar), Configurações (versão, status), Tela cheia (também pela tecla **F**)
+  jogo, com opção de apagar), Configurações (protetor de tela, versão, status), Tela cheia (também pela tecla **F**)
   e Desligar (veja [Desligar e reiniciar](#desligar-e-reiniciar)).
   O botão de tela cheia some quando o navegador já ocupa a tela toda (modo quiosque do Pi, F11).
   No Chrome/Edge, em tela cheia o Esc continua indo para o jogo; para sair, segure Esc ou use o botão.
 - Navegue com direcional/setas, mouse (clique seleciona, segundo clique abre) ou controle.
+
+### Protetor de tela
+
+Depois de um tempo sem ninguém mexer em controle, teclado ou mouse, a tela escurece e mostra só o
+relógio e a data, bem fracos, mudando de lugar a cada 20 segundos. Protege TVs OLED de marcar a
+imagem do menu e economiza energia. Qualquer botão acorda, e esse aperto não faz nada no menu nem
+no jogo.
+
+- O tempo é escolhido em **Configurações** (← →): 2, 5 (padrão), 10, 15 ou 30 minutos, ou Nunca.
+  **X** mostra o protetor na hora. A escolha fica guardada no console.
+- **Jogando**, ele espera pelo menos 15 minutos (cenas sem controle, textos longos) e **pausa o
+  jogo** enquanto está na tela, como o menu rápido. Ao acordar, o jogo continua.
 
 ### O menu rápido
 
@@ -443,6 +455,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
+- [x] Protetor de tela (no menu e jogando, com o tempo escolhido em Configurações)
 - [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)
 - [x] Capturas de tela (View + RB, F8, menu rápido) com álbum na tela inicial
 - [ ] Copiar as capturas para um pendrive
