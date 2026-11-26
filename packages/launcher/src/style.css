@@ -3287,3 +3287,27 @@ svg {
   height: 22px;
   flex: none;
 }
+
+/* ---------- arte de fundo do jogo ---------- */
+
+.panel.game-page.has-art {
+  position: relative;
+}
+
+.gp-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 320px;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.45;
+  -webkit-mask-image: linear-gradient(180deg, #000 30%, transparent);
+  mask-image: linear-gradient(180deg, #000 30%, transparent);
+  pointer-events: none;
+}
+
+.panel.game-page.has-art > :not(.gp-backdrop) {
+  position: relative;
+}

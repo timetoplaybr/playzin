@@ -190,6 +190,7 @@ mesmo assim). Pastas de projeto, a pasta pessoal e a unidade do sistema nunca s�
   "version": "1.0.0",
   "entry": "index.html",
   "cover": "cover.png",
+  "background": "background.jpg",
   "players": [1, 2]
 }
 ```
@@ -198,6 +199,11 @@ mesmo assim). Pastas de projeto, a pasta pessoal e a unidade do sistema nunca s�
 - `entry` (padrão `index.html`) e `cover` são caminhos relativos à raiz do cartucho.
 - A capa aparece num bloco **quadrado**: use **512×512** (PNG ou JPG, até 400 KB) em `public/cover.png`.
   Sem capa, o console gera uma com as iniciais do jogo.
+- `background` (opcional): a **arte de fundo**. Ela aparece atrás do topo da **página do jogo**
+  (detalhes), suavizada e sumindo para baixo; a tela inicial continua com o fundo normal. Use
+  **1920×1080** (16:9) em JPG ou PNG, até 1,5 MB, em `public/background.jpg`; o que importa fica na
+  parte de cima da imagem. O console guarda uma cópia, então a arte aparece também com o cartucho
+  fora. O `playzin check` avisa se ela não existe, é grande demais ou não é 16:9.
 - `achievements` (opcional): as conquistas do jogo. Veja [Conquistas](#conquistas).
 
 ### Conquistas
@@ -597,5 +603,6 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Tempo de jogo por perfil e por jogo
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
 - [x] Backup dos saves num pendrive (e restaurar, com cópia automática antes)
+- [x] Arte de fundo do jogo na página do jogo (`background` no playzin.json)
 - [ ] Testar o backup no Raspberry Pi (montar o pendrive para escrita pelo UDisks2)
 - [ ] Testar a fonte UDisks2 e o kiosk no hardware real

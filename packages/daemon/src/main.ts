@@ -11,6 +11,7 @@ import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } f
 import { PhoneHub } from './phone/hub.js';
 import { Updater } from './update/updater.js';
 import { BackupManager } from './backup.js';
+import { BackgroundStore } from './background-store.js';
 import { REPO_ROOT } from './config.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
@@ -92,7 +93,9 @@ async function main(): Promise<void> {
     { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) },
   );
 
-  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone, updater, backup);
+  const backgrounds = new BackgroundStore(config.backgroundsDir, { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) });
+
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone, updater, backup, backgrounds);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =

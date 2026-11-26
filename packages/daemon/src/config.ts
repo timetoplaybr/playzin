@@ -28,6 +28,8 @@ export interface DaemonConfig {
   profilesFile: string;
   /** Álbum de capturas de tela (padrão: screenshots/ ao lado da pasta de saves). */
   screenshotsDir: string;
+  /** Cópias das artes de fundo dos jogos (padrão: backgrounds ao lado da pasta de saves). */
+  backgroundsDir: string;
   /** auto = BlueZ se houver; mock = Bluetooth simulado (para testar a tela no PC). */
   bluetooth: BluetoothMode;
   /** Pareamento automático ao ligar sem controle conhecido (undefined = padrão do backend). */
@@ -101,6 +103,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     savesDir,
     profilesFile: path.resolve(env.PLAYZIN_PROFILES_FILE ?? path.join(path.dirname(savesDir), 'profiles.json')),
     screenshotsDir: path.resolve(env.PLAYZIN_SCREENSHOTS_DIR ?? path.join(path.dirname(savesDir), 'screenshots')),
+    backgroundsDir: path.resolve(env.PLAYZIN_BACKGROUNDS_DIR ?? path.join(path.dirname(savesDir), 'backgrounds')),
     bluetooth: parseBluetooth(arg(argv, 'bluetooth') ?? env.PLAYZIN_BLUETOOTH ?? 'auto'),
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
     wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),

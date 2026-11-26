@@ -95,6 +95,14 @@ export class CartridgeManager extends EventEmitter<CartridgeManagerEvents> {
           delete manifest.cover;
         }
       }
+      if (manifest.background) {
+        try {
+          await assertFile(path.join(media.rootPath, manifest.background), 'arte de fundo');
+        } catch {
+          this.log.warn(`arte de fundo "${manifest.background}" não encontrada em ${media.rootPath}; seguindo sem ela`);
+          delete manifest.background;
+        }
+      }
     } catch (err) {
       const message = `Cartucho inválido em ${media.rootPath}: ${(err as Error).message}`;
       this.log.warn(message);

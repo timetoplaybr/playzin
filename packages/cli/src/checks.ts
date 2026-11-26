@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { MANIFEST_FILE, type CartridgeManifest } from '@playzin/shared';
+import { BACKGROUND_MAX_BYTES, MANIFEST_FILE, type CartridgeManifest } from '@playzin/shared';
 import { readManifest } from './project.js';
 
 const MAX_COVER_BYTES = 400_000;
@@ -61,6 +61,28 @@ export function inspectCartridge(dir: string): CartridgeReport {
         warnings.push(`A capa é ${dims.width}×${dims.height}; no console ela aparece num quadrado (recomendado 512×512).`);
       } else if (dims && dims.width < 256) {
         warnings.push(`A capa é pequena (${dims.width}×${dims.height}); recomendado 512×512.`);
+      }
+    }
+  }
+
+  // --- arte de fundo (opcional): aparece atrás do topo da página do jogo
+  if (manifest.background) {
+    const bgPath = path.join(dir, manifest.background);
+    if (!isFile(bgPath)) {
+      errors.push(`A arte de fundo "${manifest.background}" não existe no build.`);
+    } else {
+      const size = fs.statSync(bgPath).size;
+      if (size > BACKGROUND_MAX_BYTES) {
+        warnings.push(
+          `A arte de fundo tem ${Math.round(size / 1000)} KB; acima de ${BACKGROUND_MAX_BYTES / 1000} KB o console não usa. ` +
+            'Salve em JPG (qualidade ~80) em 1920×1080.',
+        );
+      }
+      const dims = imageSize(bgPath);
+      if (dims && Math.abs(dims.width / dims.height - 16 / 9) > 0.02) {
+        warnings.push(`A arte de fundo é ${dims.width}×${dims.height}; ela cobre a tela da TV (16:9) e vai ser cortada. Recomendado 1920×1080.`);
+      } else if (dims && dims.width < 1280) {
+        warnings.push(`A arte de fundo é pequena (${dims.width}×${dims.height}); na TV fica borrada. Recomendado 1920×1080.`);
       }
     }
   }

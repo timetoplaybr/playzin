@@ -235,7 +235,13 @@ export class GamePage {
       })
       .join('');
 
-    host.innerHTML = `
+    // Arte de fundo do jogo atrás do topo da página (é o único lugar onde ela aparece).
+    const hasArt = cartridge ? Boolean(cartridge.hasBackground) : Boolean(entry?.background);
+    const backdrop = hasArt
+      ? `<div class="gp-backdrop" style="background-image:url('/api/backgrounds/${encodeURIComponent(this.gameId)}?v=${encodeURIComponent(m.version ?? '')}')"></div>`
+      : '';
+    host.classList.toggle('has-art', hasArt);
+    host.innerHTML = `${backdrop}
       <div class="gp-head">
         <div class="gp-cover">${art}</div>
         <div class="gp-title">

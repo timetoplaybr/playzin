@@ -5,6 +5,7 @@
   "entry": "index.html",
   "description": "Cartucho de exemplo: colete as estrelas e teste teclado e controle.",
   "cover": "cover.png",
+  "background": "background.jpg",
   "players": 1,
   "author": "Diego",
   "achievements": [

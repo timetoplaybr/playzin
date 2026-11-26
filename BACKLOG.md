@@ -11,7 +11,7 @@ conquistas, celular como controle...) · **G** = várias etapas.
 Menu rápido · desligar e reiniciar pela tela · ordem dos jogadores e bateria dos controles ·
 conquistas · capturas de tela · protetor de tela · remapear botões (todos os controles ou por
 modelo) · celular como controle · página de detalhes do jogo · atualização do sistema pelo Wi-Fi ·
-backup dos saves no pendrive.
+backup dos saves no pendrive · fundo com a arte do jogo.
 
 ## Prioridade sugerida
 
@@ -36,7 +36,6 @@ no SDK).
 
 | Funcionalidade | Inspiração | Como ficaria no Playzin | Esforço |
 |---|---|---|---|
-| **Fundo com a arte do jogo** | PS5 (a tela inicial assume a arte do jogo em foco) | Campo opcional `background` no `playzin.json`: com o jogo em foco, o fundo da tela inicial vira a arte dele. | P |
 | **Temas e papel de parede por perfil** | Temas do PS4/PS5, temas do Switch | Escolher uma captura como fundo do perfil, e temas claro e escuro. | P–M |
 | **Resumo da semana / Retrospectiva do ano** | PS Wrap-Up, Steam Year in Review | Com o tempo de jogo, as conquistas e as capturas: jogo mais jogado, horas, conquistas do período e comparação entre os perfis da casa. | M |
 | **Placar (leaderboard) do console** | Placares da Steam e do Xbox | `submitScore('fase-1', 1234)` no SDK, com o ranking entre os perfis da casa na página do jogo. Competição saudável na família. | M |

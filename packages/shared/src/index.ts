@@ -23,6 +23,11 @@ export interface CartridgeManifest {
   description?: string;
   /** Imagem de capa (relativa à raiz do cartucho), exibida no launcher. */
   cover?: string;
+  /**
+   * Arte de fundo (relativa à raiz do cartucho): aparece atrás do topo da página do jogo.
+   * 16:9, de preferência 1920×1080 em JPG, até BACKGROUND_MAX_BYTES.
+   */
+  background?: string;
   /** Quantidade de jogadores suportada (ex.: 1 ou [1, 2]). */
   players?: number | [number, number];
   author?: string;
@@ -114,6 +119,8 @@ export interface CartridgeInfo {
   entryUrl: string;
   /** URL da capa, se houver. */
   coverUrl?: string;
+  /** O jogo tem arte de fundo (o console guarda uma cópia: GET /api/backgrounds/<id>). */
+  hasBackground?: boolean;
   insertedAt: string;
 }
 
@@ -347,6 +354,11 @@ export function cleanProfileName(raw: unknown): string | null {
   return name;
 }
 
+/** Arte de fundo do jogo: tamanho máximo (o console guarda uma cópia de cada jogo). */
+export const BACKGROUND_MAX_BYTES = 1_500_000;
+/** Formatos aceitos para a arte de fundo. */
+export const BACKGROUND_TYPES = /\.(jpe?g|png|webp)$/i;
+
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
@@ -471,6 +483,9 @@ export function validateManifest(raw: unknown): ManifestValidation {
   if (typeof entry !== 'string' || !isSafeRelativePath(entry)) {
     errors.push('"entry" precisa ser um caminho relativo dentro do cartucho');
   }
+  if (r.background !== undefined && (typeof r.background !== 'string' || !isSafeRelativePath(r.background) || !BACKGROUND_TYPES.test(r.background))) {
+    errors.push('"background" precisa ser um caminho relativo para uma imagem .jpg, .png ou .webp');
+  }
   if (r.cover !== undefined && (typeof r.cover !== 'string' || !isSafeRelativePath(r.cover))) {
     errors.push('"cover" precisa ser um caminho relativo dentro do cartucho');
   }
@@ -498,6 +513,7 @@ export function validateManifest(raw: unknown): ManifestValidation {
   };
   if (r.description !== undefined) manifest.description = r.description as string;
   if (r.cover !== undefined) manifest.cover = r.cover as string;
+  if (r.background !== undefined) manifest.background = r.background as string;
   if (r.players !== undefined) manifest.players = r.players as CartridgeManifest['players'];
   if (achievements) manifest.achievements = achievements;
   if (r.author !== undefined) manifest.author = r.author as string;

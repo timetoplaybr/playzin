@@ -9,6 +9,8 @@ export interface LibraryEntry {
   description?: string;
   author?: string;
   players?: CartridgeManifest['players'];
+  /** O jogo tem arte de fundo (o console guarda a cópia: /api/backgrounds/<id>). */
+  background?: boolean;
   /** Capa guardada como data URL, para aparecer mesmo sem o cartucho. */
   cover?: string;
   lastSeen: number;
@@ -60,6 +62,7 @@ export class Library {
       description: manifest.description,
       author: manifest.author,
       players: manifest.players,
+      background: Boolean(cartridge.hasBackground),
       lastSeen: Date.now(),
     };
     this.entries.set(manifest.id, entry);

@@ -19,6 +19,7 @@ import { PowerError, type PowerController } from './power.js';
 import type { PhoneHub } from './phone/hub.js';
 import { UpdateError, type Updater } from './update/updater.js';
 import { BackupError, type BackupManager } from './backup.js';
+import type { BackgroundStore } from './background-store.js';
 import { ScreenshotError, type ScreenshotStore } from './screenshot-store.js';
 
 export async function createServer(
@@ -35,6 +36,7 @@ export async function createServer(
   phone: PhoneHub,
   updater: Updater,
   backup: BackupManager,
+  backgrounds: BackgroundStore,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -263,6 +265,13 @@ export async function createServer(
   // ---- Backup no pendrive ----
   const backupFail = (reply: import('fastify').FastifyReply, err: unknown) =>
     reply.code(err instanceof BackupError ? err.status : 500).send({ error: (err as Error).message });
+  // ---- Arte de fundo dos jogos (cópia guardada pelo console: funciona com o cartucho fora) ----
+  app.get<{ Params: { game: string } }>('/api/backgrounds/:game', async (req, reply) => {
+    const bg = await backgrounds.get(req.params.game);
+    if (!bg) return reply.code(404).send({ error: 'esse jogo não tem arte de fundo' });
+    return reply.type(bg.type).sendFile(path.basename(bg.file), path.dirname(bg.file), { cacheControl: false });
+  });
+
   app.get('/api/backup', async () => backup.getState());
   app.post<{ Body: { screenshots?: unknown } }>('/api/backup/create', async (req, reply) => {
     try {
@@ -494,7 +503,13 @@ export async function createServer(
   manager.on('inserted', (cartridge) => {
     // Guarda as conquistas do jogo, para a tela Atividade mostrar "2 de 4" mesmo sem o cartucho.
     achievements.remember(cartridge.manifest).catch((err: Error) => app.log.warn(`[conquistas] ${err.message}`));
-    broadcast({ type: 'cartridge-inserted', cartridge });
+    // E a arte de fundo (antes de avisar a TV, para ela já saber que o jogo tem arte).
+    void backgrounds
+      .remember(cartridge.manifest, manager.activeRoot(cartridge.slotId))
+      .then((has) => {
+        cartridge.hasBackground = has;
+      })
+      .finally(() => broadcast({ type: 'cartridge-inserted', cartridge }));
   });
   manager.on('removed', (slotId) => broadcast({ type: 'cartridge-removed', slotId }));
   manager.on('error', (message, source) => broadcast({ type: 'cartridge-error', message, source }));
