@@ -279,6 +279,26 @@ vibra ao ganhar o número, e a tela fecha sozinha quando todos os controles liga
 controle de um jogador desligar, os outros continuam com o mesmo número. Jogos feitos com o SDK
 seguem esta ordem; jogos que leem a Gamepad API direto usam a ordem de conexão.
 
+**Remapear botões:** em Controles → **Remapear botões**, escolha a função (A, B, X, Y, LB, RB,
+LT, RT, View, Menu, L3, R3 e o direcional), aperte **A** e depois o botão do controle que vai fazer
+aquela função: os dois trocam de lugar. Há também **Layout Nintendo** (A↔B e X↔Y) e **Restaurar o
+padrão**. O botão Guide e os analógicos não mudam. Esperando o botão, Esc ou Backspace no teclado
+cancelam; o teclado funciona sempre, mesmo com os botões trocados.
+
+- **De qual controle:** na linha de cima (← →), **Todos os controles** ou um **modelo** (os ligados
+  agora e os que já têm mapeamento próprio). O mapeamento de um modelo vale no lugar do de todos;
+  modelos sem o seu seguem o de todos. **Seguir "Todos os controles"** apaga o mapeamento próprio.
+- O console reconhece o **modelo** (fabricante + produto que o controle informa), não cada controle:
+  dois controles iguais dividem o mesmo mapeamento. O navegador não informa nada que diferencie dois
+  controles do mesmo modelo de um jeito que sobreviva a desligar e ligar.
+- Escolhendo um modelo, só um controle daquele modelo vale na espera pelo botão.
+- Vale para todos os jogos (inclusive os que não usam o SDK e cartuchos antigos) e para os menus do
+  console, na hora, e fica guardado no console.
+
+Por baixo: o launcher troca o `navigator.getGamepads()` da própria janela, e o daemon injeta a mesma
+troca no começo do HTML de cada jogo, antes de qualquer script dele; para cada controle, o jogo
+pergunta ao launcher qual mapeamento vale (pelo `Gamepad.id`).
+
 **Bateria:** a barra de cima mostra a bateria de cada controle Bluetooth ligado, e Controles mostra
 a porcentagem de cada um. Com 15% ou menos, o console avisa uma vez (inclusive por cima do jogo).
 A carga vem do BlueZ (`org.bluez.Battery1`) ou, quando ele não informa, do kernel
@@ -456,6 +476,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
 - [x] Protetor de tela (no menu e jogando, com o tempo escolhido em Configurações)
+- [x] Remapear botões (para todos os controles ou por modelo; vale em todos os jogos e nos menus)
 - [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)
 - [x] Capturas de tela (View + RB, F8, menu rápido) com álbum na tela inicial
 - [ ] Copiar as capturas para um pendrive

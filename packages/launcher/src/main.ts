@@ -8,8 +8,12 @@ import { LowBatteryWatcher } from './ui/battery';
 import { GameToast } from './ui/game-toast';
 import { Screensaver } from './ui/screensaver';
 import { Sounds } from './ui/sounds';
+import { installRemap } from './ui/remap';
 import { restoreTheme } from './ui/theme';
 import './style.css';
+
+// Botões remapeados em Controles: antes de qualquer leitura de controle (menus, SDK, jogos).
+installRemap();
 
 // Cor do menu de quem jogou por último, já na abertura (troca suave quando o perfil entra).
 restoreTheme();

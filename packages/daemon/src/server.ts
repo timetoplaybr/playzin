@@ -3,7 +3,7 @@ import path from 'node:path';
 import Fastify, { type FastifyInstance } from 'fastify';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
-import { CARTRIDGE_URL_PREFIX, SCREENSHOT_MAX_BYTES, WS_PATH, type ClientMessage, type ServerMessage } from '@playzin/shared';
+import { buildGamepadRemapScript, CARTRIDGE_URL_PREFIX, SCREENSHOT_MAX_BYTES, WS_PATH, type ClientMessage, type ServerMessage } from '@playzin/shared';
 import type { CartridgeManager } from './cartridge-manager.js';
 import type { DaemonConfig } from './config.js';
 import { buildSaveShim, injectIntoHtml, type SaveMode } from './save-shim.js';
@@ -82,7 +82,9 @@ export async function createServer(
         }
       }
       const script = buildSaveShim({ slotId, gameId: manifest.id, profileId: profile?.id ?? null, initial, mode });
-      return reply.type('text/html; charset=utf-8').send(injectIntoHtml(html, script));
+      // Botões remapeados em Controles valem também para jogos sem o SDK: o navigator.getGamepads()
+      // do jogo já nasce trocado (antes de qualquer script do jogo).
+      return reply.type('text/html; charset=utf-8').send(injectIntoHtml(html, buildGamepadRemapScript() + script));
     }
     return reply.sendFile(relative, root, { cacheControl: false });
   });

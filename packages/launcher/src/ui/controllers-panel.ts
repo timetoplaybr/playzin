@@ -3,6 +3,8 @@ import type { BluetoothDevice, BluetoothState } from '@playzin/shared';
 import type { ConsoleStore } from '../store';
 import { batteryLabel, cleanPadName, deviceForPad } from './battery';
 import { icons } from './icons';
+import { isRemapped } from './remap';
+import { RemapPanel } from './remap-panel';
 import type { Sounds } from './sounds';
 
 export interface PanelInput {
@@ -10,7 +12,7 @@ export interface PanelInput {
   repeatPressed(action: Action): boolean;
 }
 
-type MainItem = { type: 'order' } | { type: 'add' } | { type: 'device'; device: BluetoothDevice };
+type MainItem = { type: 'order' } | { type: 'remap' } | { type: 'add' } | { type: 'device'; device: BluetoothDevice };
 
 /** Quantos jogadores a tela de ordem distribui (como nos consoles). */
 const MAX_PLAYERS = 4;
@@ -45,9 +47,11 @@ interface Deps {
  *           e o botão Adicionar controle
  *   scan  → aparelhos encontrados por perto (A = parear, B = voltar)
  *   order → cada jogador aperta A no seu controle, na ordem (Menu ou Enter conclui, B cancela)
+ *   remap → remapear botões, para todos os controles e jogos (ui/remap-panel.ts)
  */
 export class ControllersPanel {
-  private view: 'main' | 'scan' | 'order' = 'main';
+  private view: 'main' | 'scan' | 'order' | 'remap' = 'main';
+  private readonly remap: RemapPanel;
   private order: OrderState | null = null;
   private index = 0;
   private confirmForget: string | null = null;
@@ -55,6 +59,7 @@ export class ControllersPanel {
   private focusAddress: string | null = null;
 
   constructor(private readonly deps: Deps) {
+    this.remap = new RemapPanel({ sounds: deps.sounds, toast: (t, k) => deps.toast(t, k), rerender: () => deps.rerender() });
     window.addEventListener('keydown', (e) => {
       if (this.order && (e.code === 'Enter' || e.code === 'NumpadEnter')) this.order.keyConfirm = true;
     });
@@ -93,7 +98,7 @@ export class ControllersPanel {
   }
 
   private mainItems(): MainItem[] {
-    const items: MainItem[] = [{ type: 'order' }];
+    const items: MainItem[] = [{ type: 'order' }, { type: 'remap' }];
     const bt = this.bt();
     if (!bt?.available) return items;
     return [...items, { type: 'add' }, ...bt.devices.filter((d) => d.paired).map((device) => ({ type: 'device' as const, device }))];
@@ -110,6 +115,14 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- input
 
   handleInput(input: PanelInput): 'close' | void {
+    if (this.view === 'remap') {
+      if (this.remap.handleInput(input) === 'back') {
+        this.view = 'main';
+        this.deps.sounds.back();
+        this.deps.rerender();
+      }
+      return;
+    }
     if (this.view === 'order') {
       // Backspace (ou o B do Jogador 1) cancela; o resto vem direto de cada controle.
       if (input.justPressed('back')) return this.finishOrder(false);
@@ -144,6 +157,13 @@ export class ControllersPanel {
     if (this.view === 'main') {
       const item = this.mainItems()[this.index];
       if (item?.type === 'order') return this.startOrder();
+      if (item?.type === 'remap') {
+        this.view = 'remap';
+        this.remap.open();
+        this.deps.sounds.select();
+        this.deps.rerender();
+        return;
+      }
       if (item?.type === 'add') {
         this.view = 'scan';
         this.index = 0;
@@ -276,10 +296,12 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- desenho
 
   hints(hint: (glyph: string, label: string) => string): string {
+    if (this.view === 'remap') return this.remap.hints(hint);
     if (this.view === 'order') return hint('A', 'No seu controle: entrar') + hint('☰', 'Concluir') + hint('B', 'Cancelar');
     if (this.view === 'scan') return (this.found().length ? hint('A', 'Parear') : '') + hint('B', 'Voltar');
     const item = this.mainItems()[this.index];
     if (item?.type === 'order') return hint('A', 'Mudar ordem') + hint('B', 'Voltar');
+    if (item?.type === 'remap') return hint('A', 'Remapear') + hint('B', 'Voltar');
     if (item?.type === 'add') return hint('A', 'Adicionar') + hint('B', 'Voltar');
     if (item?.type === 'device') return hint('X', 'Esquecer') + hint('B', 'Voltar');
     return hint('B', 'Voltar');
@@ -294,6 +316,14 @@ export class ControllersPanel {
       }
     }
     this.index = Math.max(0, Math.min(this.index, Math.max(0, this.count() - 1)));
+    if (this.view === 'remap') {
+      el.innerHTML = this.remap.render();
+      el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
+      el.querySelectorAll<HTMLElement>('[data-index]').forEach((node) =>
+        node.addEventListener('click', (e) => this.remap.click(Number(node.dataset.index), e.target)),
+      );
+      return;
+    }
     el.innerHTML = this.view === 'scan' ? this.renderScan() : this.view === 'order' ? this.renderOrder() : this.renderMain();
     // Lista maior que o painel: mantém o item selecionado à vista.
     el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
@@ -345,6 +375,12 @@ export class ControllersPanel {
       if (item.type === 'order') {
         return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.gamepad}</span><span class="save-name">Mudar a ordem dos jogadores</span></li>`;
       }
+      if (item.type === 'remap') {
+        return (
+          `<li class="bt-add remap-entry${selected}" data-index="${i}"><span class="bt-add-icon">${icons.gamepad}</span>` +
+          `<span class="save-name">Remapear botões</span><span class="save-meta">${isRemapped() ? 'Botões trocados' : 'Padrão'}</span></li>`
+        );
+      }
       if (item.type === 'add') {
         return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.plus}</span><span class="save-name">Adicionar controle</span></li>`;
       }
@@ -369,14 +405,14 @@ export class ControllersPanel {
       bluetooth = `<p class="muted">Este computador não tem o Bluetooth do console. No Raspberry Pi, é aqui que você pareia os
         controles. Para testar esta tela no PC, ligue o console com <code>npm run start:simulado</code>.</p>`;
     } else {
-      bluetooth = `<ul class="save-list">${items.slice(1).map((item, i) => itemHtml(item, i + 1)).join('')}</ul>`;
+      bluetooth = `<ul class="save-list">${items.slice(2).map((item, i) => itemHtml(item, i + 2)).join('')}</ul>`;
     }
 
     return `
       <h2>${icons.gamepad} Controles</h2>
       <h3 class="section-title">Jogadores</h3>
       <ul class="pad-list">${now}</ul>
-      <ul class="save-list order-entry">${itemHtml(items[0]!, 0)}</ul>
+      <ul class="save-list order-entry">${itemHtml(items[0]!, 0)}${itemHtml(items[1]!, 1)}</ul>
       <h3 class="section-title">Bluetooth${bt?.backend === 'mock' ? ' <span class="badge">simulado</span>' : ''}</h3>
       ${bluetooth}`;
   }

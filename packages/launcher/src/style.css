@@ -2833,3 +2833,89 @@ svg {
   color: var(--muted);
   font-size: 16px;
 }
+
+/* ---------- remapear botões ---------- */
+
+.order-entry {
+  display: grid;
+  gap: 10px;
+}
+
+.remap-entry {
+  grid-template-columns: auto 1fr auto;
+}
+
+.remap-entry .save-meta {
+  grid-row: 1;
+  grid-column: 3;
+  align-self: center;
+}
+
+.remap-list li {
+  grid-template-columns: 60px 1fr auto;
+  align-items: center;
+}
+
+.remap-row .btn-glyph,
+.remap-src .btn-glyph {
+  display: inline-grid;
+  place-items: center;
+  justify-self: start;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 17px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.remap-src .btn-glyph {
+  min-width: 28px;
+  height: 28px;
+  font-size: 14px;
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.remap-func {
+  font-size: 19px;
+  font-weight: 700;
+}
+
+.remap-src {
+  color: var(--muted);
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remap-row.changed .remap-func {
+  color: var(--accent-2);
+}
+
+.remap-src.waiting {
+  color: var(--accent-2);
+  font-weight: 700;
+  animation: blink 1s step-end infinite;
+}
+
+.remap-action {
+  grid-template-columns: 1fr !important;
+}
+
+.remap-target {
+  grid-template-columns: 1fr !important;
+  justify-items: center;
+  row-gap: 4px;
+}
+
+.remap-target .setting-choice b {
+  min-width: 260px;
+}
+
+.remap-row.inherited .remap-func {
+  color: var(--muted);
+}

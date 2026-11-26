@@ -3,6 +3,8 @@
  * Mudou algo aqui? Os três pacotes enxergam a mudança em tempo de compilação.
  */
 
+export * from './gamepad-remap.js';
+
 export const DEFAULT_PORT = 7777;
 export const MANIFEST_FILE = 'playzin.json';
 export const WS_PATH = '/ws';
