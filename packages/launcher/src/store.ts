@@ -1,4 +1,4 @@
-import type { BluetoothState, CartridgeInfo, PhonePad, PhonePairing, PowerState, Profile, WifiState } from '@playzin/shared';
+import type { BluetoothState, CartridgeInfo, PhonePad, PhonePairing, PowerState, Profile, UpdateState, WifiState } from '@playzin/shared';
 
 export type ConsoleStatus = 'connecting' | 'empty' | 'ready' | 'playing';
 
@@ -13,6 +13,8 @@ export interface ConsoleState {
   wifi: WifiState | null;
   /** Como o console desliga (null até o daemon responder). */
   power: PowerState | null;
+  /** Atualização do sistema pelo Wi-Fi (null até o daemon responder). */
+  update: UpdateState | null;
   /** Celulares conectados como controle. */
   phonePads: PhonePad[];
   /** O QR code da tela "Usar o celular como controle" (null até o daemon responder). */
@@ -27,7 +29,7 @@ type Listener = (state: ConsoleState, previous: ConsoleState) => void;
 
 /** Estado único do console. Cenas e o frame do jogo só reagem a ele. */
 export class ConsoleStore {
-  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null, bluetooth: null, wifi: null, power: null, phonePads: [], phonePairing: null, profiles: null, profileId: null };
+  private state: ConsoleState = { status: 'connecting', cartridge: null, notice: null, bluetooth: null, wifi: null, power: null, update: null, phonePads: [], phonePairing: null, profiles: null, profileId: null };
   private listeners = new Set<Listener>();
 
   get(): ConsoleState {

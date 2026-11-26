@@ -9,6 +9,8 @@ import { AchievementStore } from './achievements-store.js';
 import { PlaytimeStore } from './playtime-store.js';
 import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
 import { PhoneHub } from './phone/hub.js';
+import { Updater } from './update/updater.js';
+import { REPO_ROOT } from './config.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
 import { ScreenshotStore } from './screenshot-store.js';
@@ -68,12 +70,20 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
+  // Versão do sistema: a do package.json da pasta que está rodando (a do pacote instalado).
+  const version = (JSON.parse(fs.readFileSync(`${REPO_ROOT}/package.json`, 'utf8')) as { version?: string }).version ?? '0.0.0';
+  const trialMs = Number(process.env.PLAYZIN_UPDATE_TRIAL_MS) || undefined; // só para testes
+  const updater = new Updater({ ...config.update, appRoot: REPO_ROOT, trialMs }, version, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
   const phone = new PhoneHub(config.phone, {
     info: (m) => app.log.info(m),
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone);
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone, updater);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -107,7 +117,8 @@ async function main(): Promise<void> {
 
   await app.listen({ host: config.host, port: config.port });
   await phone.start();
-  app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
+  await updater.start();
+  app.log.info(`Playzin ${version} pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
   app.log.info(`capturas em: ${config.screenshotsDir}`);
@@ -115,6 +126,7 @@ async function main(): Promise<void> {
   app.log.info(`bluetooth: ${backend ? (backend.name === 'mock' ? 'simulado' : 'BlueZ') : 'indisponível'}`);
   app.log.info(`wi-fi: ${wifiBackend ? (wifiBackend.name === 'mock' ? 'simulado' : 'NetworkManager') : 'indisponível'}`);
   app.log.info(`desligar: ${powerBackend ? (powerBackend.name === 'mock' ? 'simulado' : 'logind') : 'indisponível'}`);
+  app.log.info(`atualização pelo Wi-Fi: ${updater.getState().supported ? config.update.url : (updater.getState().problem ?? 'desligada')}`);
   if (config.sourceMode !== 'udisks') {
     app.log.info(`pastas observadas: ${config.slotDirs.join(', ')}`);
     if (config.driveRoots.length) app.log.info(`unidades observadas: ${config.driveRoots.map((d) => d.slice(0, 2)).join(' ')}`);
@@ -125,9 +137,12 @@ async function main(): Promise<void> {
     await bluetooth.stop();
     await wifi.stop();
     await phone.stop();
+    updater.stop();
     await app.close();
     process.exit(0);
   };
+  // Versão nova (ou de volta para a anterior) no lugar: sai e o systemd sobe o daemon de novo, já nela.
+  updater.on('restart', () => setTimeout(() => void shutdown(), 800));
   process.on('SIGINT', () => void shutdown());
   process.on('SIGTERM', () => void shutdown());
 }

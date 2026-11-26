@@ -2,12 +2,15 @@
 Description=Playzin daemon (cartuchos, servidor local e WebSocket)
 After=network.target udisks2.service
 Wants=udisks2.service
+# Nunca desiste de subir (a volta automática de uma atualização quebrada depende disso).
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
 User=playzin
 Group=playzin
-WorkingDirectory=/opt/playzin
+# /opt/playzin/current aponta para a versão em uso (releases/<versão>); a atualização pelo Wi-Fi troca o link.
+WorkingDirectory=/opt/playzin/current
 Environment=NODE_ENV=production
 Environment=PLAYZIN_SOURCE=udisks
 Environment=PLAYZIN_PORT=7777
@@ -16,7 +19,9 @@ Environment=PLAYZIN_POWER=logind
 # Saves dos jogos: o systemd cria /var/lib/playzin com dono "playzin"
 StateDirectory=playzin
 Environment=PLAYZIN_SAVES_DIR=/var/lib/playzin/saves
-ExecStart=/usr/bin/node /opt/playzin/packages/daemon/dist/main.js
+# Volta para a versão anterior se uma atualização não conseguir subir (fica fora das versões).
+ExecStartPre=-/opt/playzin/update-guard.sh
+ExecStart=/usr/bin/node /opt/playzin/current/packages/daemon/dist/main.js
 Restart=always
 RestartSec=1
 

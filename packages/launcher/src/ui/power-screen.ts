@@ -50,6 +50,18 @@ export class PowerScreen {
     }, SIMULATED_MS);
   }
 
+  /** Instalando uma atualização: o console reinicia sozinho e a tela volta quando ele subir. */
+  updating(version: string): void {
+    window.clearTimeout(this.timer);
+    this.phase = 'going';
+    this.el.classList.remove('off');
+    this.el.innerHTML = `
+      <div class="spinner"></div>
+      <p class="power-title">Atualizando para o Playzin ${version.replace(/[<>&"]/g, '')}…</p>
+      <p class="power-sub">O console reinicia sozinho em instantes. Não tire da tomada.</p>`;
+    this.el.hidden = false;
+  }
+
   /** O desligamento falhou: volta para o menu. */
   cancel(): void {
     window.clearTimeout(this.timer);

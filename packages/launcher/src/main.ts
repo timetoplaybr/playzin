@@ -114,7 +114,12 @@ const lowBattery = new LowBatteryWatcher((device) => {
 });
 
 // ---- Eventos do daemon ----
+/** Reiniciando para atualizar: quando o daemon voltar, recarrega a página (o launcher novo vem junto). */
+let restartingForUpdate = false;
 connection.onStatus((connected) => {
+  // Para o vigia do index.html: a tela abriu e conectou (não precisa recarregar).
+  if (connected) (window as unknown as { __playzinConnected?: boolean }).__playzinConnected = true;
+  if (connected && restartingForUpdate) return location.reload();
   home.setConnected(connected);
   if (!connected && store.get().status !== 'playing') store.update({ status: 'connecting' });
 });
@@ -180,6 +185,38 @@ connection.onMessage((msg) => {
       break;
     case 'power-error':
       home.onPowerError(msg.message);
+      break;
+    case 'update': {
+      store.update({ update: msg.state });
+      const u = msg.state;
+      // Cada aviso uma vez só (o console lembra qual já mostrou).
+      const once = (key: string, value: string, show: () => void) => {
+        try {
+          if (localStorage.getItem(key) === value) return;
+          localStorage.setItem(key, value);
+        } catch {
+          /* sem localStorage: mostra mesmo assim */
+        }
+        show();
+      };
+      if (u.justUpdated) once('playzin:launcher:update-done', u.justUpdated.to, () => home.notifyUpdate(`Playzin atualizado para a versão ${u.justUpdated!.to}`));
+      if (u.rolledBack) {
+        once('playzin:launcher:update-failed', u.rolledBack.from, () =>
+          home.notifyUpdate(`A versão ${u.rolledBack!.from} não funcionou: o console voltou para a ${u.rolledBack!.to}`, 'error'),
+        );
+      }
+      if (u.available && u.phase === 'idle') {
+        once('playzin:launcher:update-seen', u.available.version, () =>
+          home.notifyUpdate(`Atualização disponível: Playzin ${u.available!.version} (em Configurações)`),
+        );
+      }
+      break;
+    }
+    case 'update-restarting':
+      // O daemon sai e volta na versão nova; quando ele voltar, a página recarrega (launcher novo).
+      if (frame.isOpen) stopPlaying();
+      restartingForUpdate = true;
+      home.onUpdateRestarting(msg.version);
       break;
     case 'phone-pads': {
       const { added, removed } = setPhonePads(msg.pads);

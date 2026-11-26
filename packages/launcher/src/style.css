@@ -3142,3 +3142,99 @@ svg {
   height: 100%;
   object-fit: cover;
 }
+
+/* ---------- atualização do sistema ---------- */
+
+.setting-row + .setting-row {
+  margin-top: -12px;
+}
+
+.sys-btn.has-update .sys-icon {
+  position: relative;
+}
+
+.sys-btn.has-update .sys-icon::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffc531;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+.upd-version {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin: -8px 0 18px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 18px;
+}
+
+.upd-version span {
+  color: var(--muted);
+}
+
+.upd-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 21px;
+  font-weight: 700;
+}
+
+.upd-status svg {
+  width: 22px;
+  height: 22px;
+}
+
+.upd-status.ok {
+  color: #7ee2a8;
+}
+
+.upd-status.new {
+  color: #ffc531;
+}
+
+.upd-notes {
+  max-height: 150px;
+  overflow: auto;
+  margin: 0 0 14px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 17px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.upd-bar {
+  height: 12px;
+  margin: 0 0 12px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+}
+
+.upd-bar span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.25s ease;
+}
+
+.upd-error {
+  margin: 12px 0 0;
+  color: #ffd0d0;
+  font-size: 17px;
+}
+
+.upd-actions {
+  margin-top: 18px;
+}

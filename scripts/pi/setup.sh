@@ -59,24 +59,43 @@ for group in video render input audio plugdev bluetooth; do
   getent group "$group" >/dev/null && usermod -aG "$group" "$APP_USER"
 done
 
-step "Código em $APP_DIR"
-mkdir -p "$APP_DIR"
+# Cada versão fica numa pasta própria (releases/<versão>) e /opt/playzin/current aponta para a
+# que está em uso: é assim que a atualização pelo Wi-Fi troca de versão (e volta, se der errado).
+# Instalando pelo setup, a versão é "<versão do package.json>-local".
+VERSION="$(node -p "require('$SRC_DIR/package.json').version")"
+RELEASE="${VERSION}-local"
+REL_DIR="$APP_DIR/releases/$RELEASE"
+
+step "Código em $REL_DIR"
+mkdir -p "$APP_DIR/releases"
 rsync -a --delete \
-  --exclude node_modules --exclude dist --exclude 'dev-slot/*' --exclude .git \
-  "$SRC_DIR/" "$APP_DIR/"
+  --exclude node_modules --exclude dist --exclude 'dev-slot/*' --exclude .git --exclude release \
+  "$SRC_DIR/" "$REL_DIR/"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
-chmod +x "$APP_DIR/scripts/pi/kiosk.sh"
+chmod +x "$REL_DIR/scripts/pi/kiosk.sh"
 
 step "Dependências e build (pode levar alguns minutos no Pi)"
-sudo -u "$APP_USER" -H bash -c "cd '$APP_DIR' && npm install --no-audit --no-fund && npm run build"
+sudo -u "$APP_USER" -H bash -c "cd '$REL_DIR' && npm install --no-audit --no-fund && npm run build"
+
+step "Versão em uso: $RELEASE"
+ln -sfn "releases/$RELEASE" "$APP_DIR/current"
+chown -h "$APP_USER:$APP_USER" "$APP_DIR/current"
+install -m 755 "$REL_DIR/scripts/pi/files/update-guard.sh" "$APP_DIR/update-guard.sh"
+# Instalação feita à mão: nenhuma atualização "em teste" pendente.
+rm -f /var/lib/playzin/update/pending /var/lib/playzin/update/attempts /var/lib/playzin/update/last-update
+# Instalações de antes da atualização pelo Wi-Fi deixaram o código solto em /opt/playzin.
+OLD_LAYOUT=""
+for old in packages node_modules scripts cartridges docs package.json; do
+  [ -e "$APP_DIR/$old" ] && OLD_LAYOUT="$OLD_LAYOUT $APP_DIR/$old"
+done
 
 step "Permissões: montar pendrives, escolher o Wi-Fi e desligar pela tela (polkit)"
-install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-udisks.rules" /etc/polkit-1/rules.d/50-playzin-udisks.rules
-install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-network.rules" /etc/polkit-1/rules.d/50-playzin-network.rules
-install -m 644 "$APP_DIR/scripts/pi/files/50-playzin-power.rules" /etc/polkit-1/rules.d/50-playzin-power.rules
+install -m 644 "$REL_DIR/scripts/pi/files/50-playzin-udisks.rules" /etc/polkit-1/rules.d/50-playzin-udisks.rules
+install -m 644 "$REL_DIR/scripts/pi/files/50-playzin-network.rules" /etc/polkit-1/rules.d/50-playzin-network.rules
+install -m 644 "$REL_DIR/scripts/pi/files/50-playzin-power.rules" /etc/polkit-1/rules.d/50-playzin-power.rules
 
 step "Bluetooth (permissão para o console parear controles)"
-install -m 644 "$APP_DIR/scripts/pi/files/playzin-bluetooth.conf" /etc/dbus-1/system.d/playzin-bluetooth.conf
+install -m 644 "$REL_DIR/scripts/pi/files/playzin-bluetooth.conf" /etc/dbus-1/system.d/playzin-bluetooth.conf
 rfkill unblock bluetooth 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
@@ -130,9 +149,9 @@ if [[ "$INSTALL_XPADNEO" == 1 ]]; then
 fi
 
 step "Serviços systemd"
-install -m 644 "$APP_DIR/scripts/pi/files/playzin-kiosk.pam" /etc/pam.d/playzin-kiosk
-install -m 644 "$APP_DIR/scripts/pi/files/playzin-daemon.service" /etc/systemd/system/playzin-daemon.service
-install -m 644 "$APP_DIR/scripts/pi/files/playzin-kiosk.service" /etc/systemd/system/playzin-kiosk.service
+install -m 644 "$REL_DIR/scripts/pi/files/playzin-kiosk.pam" /etc/pam.d/playzin-kiosk
+install -m 644 "$REL_DIR/scripts/pi/files/playzin-daemon.service" /etc/systemd/system/playzin-daemon.service
+install -m 644 "$REL_DIR/scripts/pi/files/playzin-kiosk.service" /etc/systemd/system/playzin-kiosk.service
 systemctl daemon-reload
 systemctl enable udisks2.service bluetooth.service playzin-daemon.service playzin-kiosk.service
 systemctl set-default graphical.target
@@ -151,4 +170,13 @@ Comandos úteis:
 Opcional, depois de parear os controles: deixar o sistema somente leitura
 (aguenta ser desligado da tomada):
   sudo raspi-config  →  Performance Options  →  Overlay File System
+(com ele ligado, saves e atualizações pelo Wi-Fi se perdem a cada reboot)
+
+Atualizações: Configurações → Atualização do sistema, na TV.
 EOF
+if [ -n "$OLD_LAYOUT" ]; then
+  echo
+  echo "Sobrou a instalação antiga (de antes da atualização pelo Wi-Fi), que não é mais usada:"
+  echo " $OLD_LAYOUT"
+  echo "Pode apagar quando quiser (o console agora roda de $APP_DIR/current)."
+fi

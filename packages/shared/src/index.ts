@@ -183,6 +183,49 @@ export interface PowerState {
   backend: 'logind' | 'mock' | 'none';
 }
 
+// ---- Atualização do sistema pelo Wi-Fi ----
+
+/** Uma versão nova publicada (o latest.json do GitHub Releases, já conferido pela assinatura). */
+export interface UpdateRelease {
+  version: string;
+  /** Novidades, escritas na tag da versão. */
+  notes: string;
+  /** Tamanho do pacote, em bytes. */
+  size: number;
+  publishedAt: string;
+}
+
+export type UpdatePhase =
+  /** Nada acontecendo (pode haver uma versão nova disponível em `available`). */
+  | 'idle'
+  | 'checking'
+  | 'downloading'
+  /** Baixado, conferido e extraído: falta a confirmação na TV para instalar. */
+  | 'ready'
+  /** Trocando a versão e reiniciando. */
+  | 'installing';
+
+export interface UpdateState {
+  /** Versão em uso. */
+  version: string;
+  /** Este console sabe se atualizar sozinho? (No PC de desenvolvimento, não.) */
+  supported: boolean;
+  /** Por que não dá para atualizar aqui (quando `supported` é false). */
+  problem: string | null;
+  phase: UpdatePhase;
+  /** Versão mais nova que a atual, se houver. */
+  available: UpdateRelease | null;
+  /** 0–1 enquanto baixa. */
+  progress: number;
+  lastCheckedAt: string | null;
+  /** Último erro (rede, assinatura, espaço...), para mostrar na tela. */
+  error: string | null;
+  /** Acabou de atualizar (aparece uma vez, depois de reiniciar). */
+  justUpdated: { from: string; to: string } | null;
+  /** A versão nova não funcionou e o console voltou para a anterior. */
+  rolledBack: { from: string; to: string } | null;
+}
+
 // ---- Celular como controle ----
 
 /** Quantos celulares podem estar conectados ao mesmo tempo. */
@@ -256,6 +299,9 @@ export function cleanProfileName(raw: unknown): string | null {
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
+  | { type: 'update'; state: UpdateState }
+  /** O console vai reiniciar agora para usar a versão nova (o launcher recarrega quando ele voltar). */
+  | { type: 'update-restarting'; version: string }
   | { type: 'phone-pads'; pads: PhonePad[] }
   | { type: 'phone-pairing'; pairing: PhonePairing }
   /** Um celular acabou de entrar (para o aviso na TV). */
@@ -281,7 +327,8 @@ export type ServerMessage =
 
 /** Mensagens que o launcher envia ao daemon. */
 export type ClientMessage =
-  | { type: 'hello'; client: 'launcher' }
+  /** `version`: de qual versão é a tela que conectou (a atualização só se confirma com a tela nova). */
+  | { type: 'hello'; client: 'launcher'; version?: string }
   | { type: 'ping' }
   /** O jogo pediu vibração no controle do celular. */
   | { type: 'phone-rumble'; id: string; ms: number }

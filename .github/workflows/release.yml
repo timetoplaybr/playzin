@@ -1,0 +1,63 @@
+# Publica uma versão do Playzin para a atualização pelo Wi-Fi.
+#
+# Para lançar a versão X.Y.Z:
+#   1. mude "version" no package.json da raiz para X.Y.Z e faça o commit;
+#   2. crie uma tag anotada com as novidades (é o texto que aparece na TV):
+#        git tag -a vX.Y.Z -m "Novidades: ..."
+#        git push origin vX.Y.Z
+# Este fluxo compila, monta o pacote, assina com o segredo PLAYZIN_RELEASE_KEY e publica no
+# GitHub Releases. Os consoles encontram a versão nova em Configurações → Atualização do sistema
+# (e procuram sozinhos uma vez por dia).
+name: Publicar versão
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: A tag confere com a versão do package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::A tag $GITHUB_REF_NAME não bate com a versão $VERSION do package.json"
+            exit 1
+          fi
+
+      - name: Novidades (mensagem da tag)
+        run: |
+          git fetch --force --tags
+          git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > release-notes.txt
+          cat release-notes.txt
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+
+      - name: Pacote assinado
+        env:
+          PLAYZIN_RELEASE_KEY: ${{ secrets.PLAYZIN_RELEASE_KEY }}
+        run: >
+          node scripts/release/build-release.mjs --out release --notes-file release-notes.txt
+          --base-url "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}"
+
+      - name: Publicar no GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "$GITHUB_REF_NAME" release/playzin-*.tar.gz release/latest.json
+          --title "Playzin ${GITHUB_REF_NAME#v}" --notes-file release-notes.txt

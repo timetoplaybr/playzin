@@ -21,7 +21,10 @@ export class DaemonConnection {
 
     socket.addEventListener('open', () => {
       this.retryMs = 500;
-      this.send({ type: 'hello', client: 'launcher' });
+      // A versão desta tela (gravada no index.html no build): uma atualização só se confirma
+      // quando a tela da versão nova conecta (não a antiga, que ainda está aberta e reconecta).
+      const version = document.querySelector<HTMLMetaElement>('meta[name="playzin-version"]')?.content;
+      this.send({ type: 'hello', client: 'launcher', version });
       this.statusListeners.forEach((l) => l(true));
       this.pingTimer = window.setInterval(() => this.send({ type: 'ping' }), 15000);
     });

@@ -20,7 +20,7 @@ UtmpIdentifier=tty1
 UtmpMode=user
 Environment=XDG_SESSION_TYPE=wayland
 # -d: sem decorações de janela; -s: permite trocar de TTY (Ctrl+Alt+F2) para manutenção
-ExecStart=/usr/bin/cage -d -s -- /opt/playzin/scripts/pi/kiosk.sh
+ExecStart=/usr/bin/cage -d -s -- /opt/playzin/current/scripts/pi/kiosk.sh
 Restart=always
 RestartSec=2
 

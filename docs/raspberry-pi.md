@@ -123,11 +123,27 @@ Com o túnel aberto, acesse **http://localhost:7777** no PC. Isso ajuda a depura
 
 ## 7. Atualizar o código depois
 
-Repita o passo 3 (gerar o pacote, mandar com `scp`, extrair) e rode
-`sudo ./scripts/pi/setup.sh` de novo. Ele recopia, recompila e reinicia tudo, e os saves ficam
-guardados em `/var/lib/playzin`, que não é apagado.
+**Pelo Wi-Fi (o normal):** na TV, Configurações → Atualização do sistema. Detalhes no README
+("Atualização do sistema pelo Wi-Fi").
+
+**À mão (ou se a atualização pelo Wi-Fi disser que o console foi instalado do jeito antigo):**
+repita o passo 3 (gerar o pacote, mandar com `scp`, extrair) e rode
+`sudo ./scripts/pi/setup.sh` de novo. Ele instala numa pasta própria
+(`/opt/playzin/releases/<versão>-local`), aponta `/opt/playzin/current` para ela, recompila e
+reinicia tudo; os saves ficam em `/var/lib/playzin`, que não é apagado.
+
+Consoles instalados antes da atualização pelo Wi-Fi precisam rodar o `setup.sh` **uma vez** para
+passar para esse formato (ele também atualiza os serviços do systemd). O setup avisa quais pastas
+da instalação antiga sobraram em `/opt/playzin`; elas não são mais usadas e podem ser apagadas.
 
 ## O que vale testar com atenção
+
+Atualização pelo Wi-Fi (precisa de uma versão publicada no GitHub Releases):
+
+- `ls -l /opt/playzin` mostra `current -> releases/<versão>` e o `update-guard.sh`;
+- em Configurações → Atualização do sistema, procurar, baixar e instalar; a TV deve voltar sozinha
+  na versão nova (`journalctl -u playzin-daemon | grep atualização` conta o que aconteceu);
+- `cat /opt/playzin/current/package.json | grep version` confere a versão em uso.
 
 São os itens que o README ainda marca como não testados no hardware:
 

@@ -9,6 +9,7 @@ import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
 import { CapturesPanel } from './captures-panel';
 import { GamePage } from './game-page';
+import { UpdatePanel } from './update-panel';
 import { TrophiesPanel } from './trophies-panel';
 import { PowerPanel } from './power-panel';
 import { PowerScreen } from './power-screen';
@@ -29,7 +30,6 @@ const SHELF_PADDING = 64;
 const VISIBLE_TILES = 4; // quantos cabem inteiros antes de rolar
 const REPEAT_DELAY_MS = 380;
 const REPEAT_RATE_MS = 110;
-const VERSION = '0.3.0';
 /** Último perfil escolhido (fica no navegador do console, junto com as outras chaves do launcher). */
 const SKIP_ACTIONS = ACTIONS;
 const LAST_PROFILE_KEY = 'playzin:launcher:last-profile';
@@ -78,7 +78,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | 'game' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | 'game' | 'update' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -106,6 +106,9 @@ export class HomeUI {
   private readonly trophiesPanel: TrophiesPanel;
   /** Página de detalhes do jogo (Y no jogo, ou A num jogo sem o cartucho). */
   private readonly gamePage: GamePage;
+  private readonly updatePanel: UpdatePanel;
+  /** Configurações: 0 = protetor de tela, 1 = atualização do sistema. */
+  private settingsRow = 0;
   /** Ao fechar o álbum aberto pela página do jogo, volta para ela. */
   private returnToGame: string | null = null;
   private readonly powerPanel: PowerPanel;
@@ -212,6 +215,13 @@ export class HomeUI {
       host: () => this.el.panel,
       hintsChanged: () => this.renderHints(),
     });
+    this.updatePanel = new UpdatePanel({
+      store,
+      sounds,
+      host: () => this.el.panel,
+      toast: (text, kind) => this.showToast(text, kind),
+      hintsChanged: () => this.renderHints(),
+    });
     this.gamePage = new GamePage({
       store,
       library,
@@ -315,6 +325,25 @@ export class HomeUI {
       if (this.rafId !== undefined) cancelAnimationFrame(this.rafId);
       this.rafId = undefined;
     }
+  }
+
+  /** O console vai reiniciar para usar a versão nova. */
+  onUpdateRestarting(version: string): void {
+    if (this.panel) this.closePanel(true);
+    this.held = null;
+    this.powerScreen.updating(version);
+  }
+
+  /** Aviso na tela inicial (a atualização usa para "disponível" e "atualizado"). */
+  notifyUpdate(text: string, kind: 'info' | 'error' = 'info'): void {
+    this.showToast(text, kind);
+  }
+
+  /** Bolinha no ícone de Configurações quando há uma versão nova. */
+  private renderUpdateBadge(): void {
+    const u = this.store.get().update;
+    const node = this.el.system.querySelector<HTMLElement>('.sys-btn[data-id="settings"]');
+    node?.classList.toggle('has-update', Boolean(u?.supported && u.available && u.phase !== 'installing'));
   }
 
   /** O console vai desligar/reiniciar agora: tela de "Desligando…" por cima de tudo. */
@@ -461,6 +490,10 @@ export class HomeUI {
     this.renderTiles(justInserted);
     // Cartucho entrou ou saiu com a página do jogo aberta: muda o "no console" e o botão Jogar.
     if (this.panel === 'game' && state.cartridge !== prev.cartridge) this.gamePage.render();
+    if (state.update !== prev.update) {
+      this.renderUpdateBadge();
+      if (this.panel === 'update' || this.panel === 'settings') this.renderPanel();
+    }
     this.renderStatus();
     if (state.profiles !== prev.profiles || state.profileId !== prev.profileId) {
       this.renderProfile();
@@ -597,6 +630,7 @@ export class HomeUI {
       }),
     );
     if (this.tiles.length) this.applyFocus();
+    this.renderUpdateBadge();
   }
 
   // ---------------------------------------------------------------- foco
@@ -767,6 +801,7 @@ export class HomeUI {
     if (panel === 'captures') this.capturesPanel.open(gameId);
     if (panel === 'trophies') this.trophiesPanel.open();
     if (panel === 'power') this.powerPanel.open();
+    if (panel === 'update') this.updatePanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
     this.el.panel.classList.toggle('album', panel === 'captures');
     this.el.panel.classList.toggle('trophies', panel === 'trophies');
@@ -798,6 +833,11 @@ export class HomeUI {
     const back = this.returnToGame;
     this.returnToGame = null;
     if (!quiet && closing === 'captures' && back) this.openPanel('game', back);
+    // Saiu da atualização: volta para Configurações (de onde ela abre).
+    if (!quiet && closing === 'update') {
+      this.settingsRow = 1;
+      this.openPanel('settings');
+    }
   }
 
   private async loadSaves(): Promise<void> {
@@ -892,6 +932,8 @@ export class HomeUI {
       this.activityPanel.render();
     } else if (this.panel === 'trophies') {
       this.trophiesPanel.render();
+    } else if (this.panel === 'update') {
+      this.updatePanel.render();
     } else if (this.panel === 'game') {
       this.gamePage.render();
     } else if (this.panel === 'captures') {
@@ -902,7 +944,7 @@ export class HomeUI {
       const { cartridge } = this.store.get();
       this.el.panel.innerHTML = `
         <h2>${icons.settings} Configurações</h2>
-        <div class="setting-row selected">
+        <div class="setting-row${this.settingsRow === 0 ? ' selected' : ''}" data-row="0">
           <span class="setting-name">Protetor de tela</span>
           <span class="setting-choice">
             <button class="sc-prev" title="Menos tempo">${icons.chevronLeft}</button>
@@ -915,8 +957,17 @@ export class HomeUI {
               : 'Sem ninguém mexer nesse tempo, a tela escurece e mostra só o relógio. Jogando, espera pelo menos 15 minutos.'
           }</span>
         </div>
+        <div class="setting-row${this.settingsRow === 1 ? ' selected' : ''}" data-row="1">
+          <span class="setting-name">Atualização do sistema</span>
+          <span class="setting-choice"><b>${updateSummary(this.store.get().update)}</b></span>
+          <span class="setting-help">${
+            this.store.get().update?.available
+              ? 'Tem versão nova: aperte A para ver as novidades e instalar.'
+              : 'Aperte A para procurar uma versão nova (o console também procura sozinho uma vez por dia).'
+          }</span>
+        </div>
         <dl class="info">
-          <dt>Versão</dt><dd>Playzin ${VERSION}</dd>
+          <dt>Versão</dt><dd>Playzin ${escapeHtml(this.store.get().update?.version ?? '…')}</dd>
           <dt>Perfil</dt><dd>${escapeHtml(this.store.profile()?.name ?? 'Nenhum')} · ${this.store.get().profiles?.length ?? 0} de 4 no console</dd>
           <dt>Tempo de jogo</dt><dd>${this.playtimeTotal > 0 ? `${formatPlaytime(this.playtimeTotal)} no total` : 'Nada ainda'}</dd>
           <dt>Sistema</dt><dd>${this.connected ? 'Conectado' : 'Desconectado'}</dd>
@@ -969,6 +1020,8 @@ export class HomeUI {
       html = this.activityPanel.hints(hint);
     } else if (this.panel === 'trophies') {
       html = this.trophiesPanel.hints(hint);
+    } else if (this.panel === 'update') {
+      html = this.updatePanel.hints(hint);
     } else if (this.panel === 'game') {
       html = this.gamePage.hints(hint);
     } else if (this.panel === 'captures') {
@@ -978,7 +1031,10 @@ export class HomeUI {
     } else if (this.panel === 'saves') {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel === 'settings') {
-      html = hint('↔', 'Protetor de tela') + hint('X', 'Ver agora') + hint('B', 'Voltar');
+      html =
+        this.settingsRow === 1
+          ? hint('A', 'Abrir') + hint('B', 'Voltar')
+          : hint('↔', 'Protetor de tela') + hint('X', 'Ver agora') + hint('B', 'Voltar');
     } else if (this.panel) {
       html = hint('B', 'Voltar');
     } else if (this.row === 'profile') {
@@ -992,6 +1048,12 @@ export class HomeUI {
       else html = hint('A', 'OK');
     }
     this.el.hints.innerHTML = html;
+  }
+
+  private openUpdate(): void {
+    this.sounds.select();
+    this.closePanel(true);
+    this.openPanel('update');
   }
 
   /** ←/→ em Configurações: tempo do protetor de tela. */
@@ -1089,6 +1151,14 @@ export class HomeUI {
       if (result === 'close') this.closePanel();
       return;
     }
+    if (this.panel === 'update') {
+      const result = this.updatePanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
     if (this.panel === 'game') {
       const result = this.gamePage.handleInput({
         justPressed: (a) => this.input.justPressed(a),
@@ -1138,9 +1208,21 @@ export class HomeUI {
       return;
     }
     if (this.panel === 'settings') {
-      if (this.input.justPressed('back') || this.input.justPressed('confirm')) return this.closePanel();
-      if (this.repeatPressed('left')) this.changeScreensaver(-1);
-      if (this.repeatPressed('right')) this.changeScreensaver(1);
+      if (this.input.justPressed('back')) return this.closePanel();
+      for (const [action, dy] of [['up', -1], ['down', 1]] as const) {
+        if (!this.repeatPressed(action)) continue;
+        const next = clamp(this.settingsRow + dy, 0, 1);
+        if (next !== this.settingsRow) {
+          this.settingsRow = next;
+          this.sounds.move();
+          this.renderPanel();
+          this.renderHints();
+        }
+      }
+      if (this.settingsRow === 1 && this.input.justPressed('confirm')) return this.openUpdate();
+      if (this.input.justPressed('confirm')) return this.closePanel();
+      if (this.settingsRow === 0 && this.repeatPressed('left')) this.changeScreensaver(-1);
+      if (this.settingsRow === 0 && this.repeatPressed('right')) this.changeScreensaver(1);
       if (this.input.justPressed('action')) this.actions.screensaver.start();
       return;
     }
@@ -1248,6 +1330,16 @@ function rememberProfile(id: string): void {
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+}
+
+/** Resumo da atualização para a linha de Configurações. */
+function updateSummary(u: import('@playzin/shared').UpdateState | null): string {
+  if (!u) return '…';
+  if (!u.supported) return `Playzin ${escapeHtml(u.version)}`;
+  if (u.phase === 'downloading') return `Baixando… ${Math.round(u.progress * 100)}%`;
+  if (u.phase === 'ready' && u.available) return `${escapeHtml(u.available.version)} pronta para instalar`;
+  if (u.available) return `Nova: ${escapeHtml(u.available.version)}`;
+  return `Playzin ${escapeHtml(u.version)} · em dia`;
 }
 
 function clamp(n: number, min: number, max: number): number {

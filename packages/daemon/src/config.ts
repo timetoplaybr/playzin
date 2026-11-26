@@ -41,6 +41,8 @@ export interface DaemonConfig {
   power: PowerMode;
   /** Celular como controle: porta aberta para a rede de casa (só a página do controle). */
   phone: { enabled: boolean; host: string; port: number };
+  /** Atualização do sistema pelo Wi-Fi (GitHub Releases, com assinatura). */
+  update: { mode: 'auto' | 'off' | 'force'; url: string; installRoot: string; stateDir: string };
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -103,6 +105,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
     wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),
     power: parsePower(arg(argv, 'power') ?? env.PLAYZIN_POWER ?? 'auto'),
+    update: {
+      mode: parseUpdateMode(arg(argv, 'update') ?? env.PLAYZIN_UPDATE ?? 'auto'),
+      url: env.PLAYZIN_UPDATE_URL ?? DEFAULT_UPDATE_URL,
+      installRoot: path.resolve(env.PLAYZIN_INSTALL_ROOT ?? '/opt/playzin'),
+      stateDir: path.resolve(env.PLAYZIN_UPDATE_STATE_DIR ?? path.join(path.dirname(savesDir), 'update')),
+    },
     phone: {
       enabled: parseBool(arg(argv, 'phone') ?? env.PLAYZIN_PHONE) ?? true,
       host: env.PLAYZIN_PHONE_HOST ?? '0.0.0.0',
@@ -130,6 +138,15 @@ function parsePower(value: string): PowerMode {
     throw new Error(`Energia inválida: "${value}" (use auto, logind, mock ou none)`);
   }
   return value as PowerMode;
+}
+
+/** O latest.json da versão mais nova publicada no GitHub Releases do projeto. */
+export const DEFAULT_UPDATE_URL = 'https://github.com/timetoplaybr/playzin/releases/latest/download/latest.json';
+
+function parseUpdateMode(value: string): 'auto' | 'off' | 'force' {
+  const v = value === 'true' ? 'auto' : ['0', 'false', 'no', 'nao', 'não'].includes(value) ? 'off' : value;
+  if (!['auto', 'off', 'force'].includes(v)) throw new Error(`Atualização inválida: "${value}" (use auto, off ou force)`);
+  return v as 'auto' | 'off' | 'force';
 }
 
 function parsePort(value: string, name: string): number {

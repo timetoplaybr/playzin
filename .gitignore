@@ -7,3 +7,6 @@ dist/
 dev-slot/*
 !dev-slot/.gitkeep
 .playzin-data/
+
+# Pacote de versão montado por scripts/release/build-release.mjs
+release/

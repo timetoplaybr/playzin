@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Playzin</title>
     <link rel="icon" href="data:," />
+    <script>
+      // Vigia: se a tela não conectar ao console em 20 s (ex.: uma atualização com a tela quebrada,
+      // que o console desfaz sozinho), recarrega e pega a versão que estiver funcionando.
+      setTimeout(function () { if (!window.__playzinConnected) location.reload(); }, 20000);
+    </script>
   </head>
   <body class="hide-cursor">
     <!-- Tela inicial: desenhada numa "tela" fixa de 1280x720 e escalada para a TV -->

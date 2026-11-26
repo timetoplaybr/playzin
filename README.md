@@ -446,6 +446,48 @@ Apagar faz o jogo começar do zero na próxima vez.
 
 Só `localStorage` é coberto: dados em IndexedDB ou cookies continuam apenas no navegador.
 
+## Atualização do sistema pelo Wi-Fi
+
+Na TV: **Configurações → Atualização do sistema** (↓ até a linha, **A**). A tela mostra a versão
+instalada e procura uma nova; havendo, mostra as novidades e o tamanho. **Baixar** traz o pacote em
+segundo plano (o console continua usável) e confere tudo; **Instalar e reiniciar** pede **A duas
+vezes**. O console reinicia sozinho, em menos de um minuto, e a TV volta já na versão nova, com o
+aviso "Playzin atualizado". O console também procura sozinho uma vez por dia e avisa (com uma
+bolinha no ícone de Configurações), mas **só instala com a confirmação na TV**.
+
+**Segurança e volta automática**
+
+- Cada versão é assinada (ed25519). O console só aceita um pacote cuja assinatura confere com a
+  chave pública que vem nele (`packages/daemon/src/update/public-key.ts`) e cujo sha256 bate com o
+  assinado: um pacote adulterado ou corrompido é recusado antes de ser instalado.
+- Cada versão fica numa pasta (`/opt/playzin/releases/<versão>`) e `/opt/playzin/current` aponta
+  para a que está em uso: instalar é trocar esse link de uma vez só (um corte de energia no meio deixa
+  a versão antiga ou a nova, nunca metade). O console guarda a versão atual e a anterior.
+- A versão nova fica **em teste** até a tela da TV (da versão nova) abrir e conectar. Não conectou em
+  2 minutos: o console volta sozinho para a anterior e avisa na TV. Se o daemon novo nem sobe,
+  o `update-guard.sh` (que roda antes de cada início do serviço) volta para a anterior depois de 3
+  tentativas.
+- Saves, perfis, capturas e configurações ficam em `/var/lib/playzin` e não são tocados.
+- Muda só o Playzin (`/opt/playzin`). Mudanças no sistema (serviços do systemd, polkit, pacotes do
+  Raspberry Pi OS) continuam pelo `setup.sh`.
+
+**Publicar uma versão** (GitHub Actions, `.github/workflows/release.yml`):
+
+1. Uma vez: no GitHub, em *Settings → Secrets and variables → Actions*, crie o segredo
+   `PLAYZIN_RELEASE_KEY` com o conteúdo da chave privada (`~/.playzin/release-signing-key.pem`, que
+   **não** vai para o git; guarde uma cópia em lugar seguro: sem ela não dá para publicar versões que
+   os consoles aceitem). Para gerar um par novo: `node scripts/release/keygen.mjs`.
+2. Mude `"version"` no `package.json` da raiz (ex.: `0.4.0`) e faça o commit.
+3. Crie a tag anotada com as novidades (o texto aparece na TV) e envie:
+   `git tag -a v0.4.0 -m "Novidades: ..."` e `git push origin v0.4.0`.
+
+O fluxo confere a tag com o `package.json`, compila, monta o pacote (só o que o console roda: código
+compilado e dependências de produção, ~6 MB), assina, confere a assinatura com a chave pública do
+console e publica `playzin-<versão>.tar.gz` e `latest.json` no GitHub Releases. Os consoles leem
+`https://github.com/timetoplaybr/playzin/releases/latest/download/latest.json`: o repositório precisa
+ser **público** (ou aponte `PLAYZIN_UPDATE_URL` para outro lugar com os mesmos dois arquivos). Para
+montar o pacote à mão: `npm run release:pack -- --base-url <endereço> --key <chave.pem>`.
+
 ## Instalando no Raspberry Pi
 
 Guia completo, passo a passo a partir do Windows: [docs/raspberry-pi.md](docs/raspberry-pi.md).
@@ -494,6 +536,9 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 | `PLAYZIN_WIFI` | `auto` | `auto` (NetworkManager se houver), `networkmanager`, `mock` (simulado) ou `none`. Também `--wifi=mock` |
 | `PLAYZIN_PHONE` | ligado | Celular como controle (`0` desliga a porta dos celulares). Também `--phone=0` |
 | `PLAYZIN_PHONE_PORT` | `7779` | Porta dos celulares (aberta para a rede de casa: só a página do controle) |
+| `PLAYZIN_UPDATE` | `auto` | Atualização pelo Wi-Fi: `auto` (só no console instalado pelo `setup.sh`), `off` (desliga) ou `force` (testes) |
+| `PLAYZIN_UPDATE_URL` | GitHub Releases do projeto | Onde está o `latest.json` das versões |
+| `PLAYZIN_INSTALL_ROOT` | `/opt/playzin` | Pasta com `releases/` e o link `current` |
 | `PLAYZIN_POWER` | `auto` (Pi: `logind`) | Desligar/reiniciar pela tela: `auto` (logind só rodando como serviço do systemd; senão simulado), `logind`, `mock` ou `none`. Também `--power=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 | `PLAYZIN_PROFILES_FILE` | `profiles.json` ao lado da pasta de saves | Lista de perfis do console |
@@ -511,6 +556,8 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Protetor de tela (no menu e jogando, com o tempo escolhido em Configurações)
 - [x] Celular como controle (QR code na TV, até 4, em todos os jogos)
 - [x] Página de detalhes do jogo (dados do cartucho, números do perfil, conquistas, capturas)
+- [x] Atualização do sistema pelo Wi-Fi (GitHub Actions + Releases, assinada, com confirmação na TV e volta automática)
+- [ ] Testar a atualização pelo Wi-Fi no Raspberry Pi (systemd, update-guard.sh, troca do link)
 - [ ] Testar o celular como controle com celulares de verdade (Android e iPhone) no Raspberry Pi
 - [x] Remapear botões (para todos os controles ou por modelo; vale em todos os jogos e nos menus)
 - [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)

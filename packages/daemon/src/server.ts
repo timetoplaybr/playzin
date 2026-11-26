@@ -17,6 +17,7 @@ import { WifiError } from './wifi/types.js';
 import { BluetoothError } from './bluetooth/types.js';
 import { PowerError, type PowerController } from './power.js';
 import type { PhoneHub } from './phone/hub.js';
+import { UpdateError, type Updater } from './update/updater.js';
 import { ScreenshotError, type ScreenshotStore } from './screenshot-store.js';
 
 export async function createServer(
@@ -31,6 +32,7 @@ export async function createServer(
   power: PowerController,
   screenshots: ScreenshotStore,
   phone: PhoneHub,
+  updater: Updater,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -238,6 +240,24 @@ export async function createServer(
     return reply.code(204).send();
   });
 
+  // ---- Atualização do sistema (procurar, baixar e, com a confirmação na TV, instalar) ----
+  const updateFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    reply.code(err instanceof UpdateError ? err.status : 500).send({ error: (err as Error).message });
+  app.get('/api/update', async () => updater.getState());
+  for (const [route, run] of [
+    ['check', () => updater.check()],
+    ['download', () => updater.download()],
+    ['install', () => updater.install()],
+  ] as const) {
+    app.post(`/api/update/${route}`, async (_req, reply) => {
+      try {
+        return await run();
+      } catch (err) {
+        return updateFail(reply, err);
+      }
+    });
+  }
+
   // ---- Perfis ----
   const profileFail = (reply: import('fastify').FastifyReply, err: unknown) =>
     err instanceof ProfileError
@@ -429,6 +449,7 @@ export async function createServer(
     send(socket, { type: 'power', state: power.state() });
     send(socket, { type: 'phone-pads', pads: phone.pads() });
     send(socket, { type: 'phone-pairing', pairing: phone.pairing() });
+    send(socket, { type: 'update', state: updater.getState() });
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -437,6 +458,8 @@ export async function createServer(
         return;
       }
       if (msg.type === 'hello' || msg.type === 'ping') send(socket, { type: 'state', cartridge: manager.current });
+      // A TV abriu e conectou: uma versão recém-instalada está funcionando.
+      if (msg.type === 'hello') updater.launcherConnected(msg.version);
       if (msg.type === 'phone-rumble' && typeof msg.id === 'string' && Number.isFinite(msg.ms)) phone.rumble(msg.id, msg.ms);
       if (msg.type === 'phone-label' && typeof msg.id === 'string') phone.label(msg.id, msg.player);
     });
@@ -461,6 +484,8 @@ export async function createServer(
   wifi.on('error', (message, ssid, wrongPassword) => broadcast({ type: 'wifi-error', message, ssid, wrongPassword }));
   power.on('action', (action, simulated) => broadcast({ type: 'power-action', action, simulated }));
   phone.on('pads', (pads) => broadcast({ type: 'phone-pads', pads }));
+  updater.on('state', (state) => broadcast({ type: 'update', state }));
+  updater.on('restart', (version) => broadcast({ type: 'update-restarting', version }));
   phone.on('pairing', (pairing) => broadcast({ type: 'phone-pairing', pairing }));
   phone.on('joined', (pad) => broadcast({ type: 'phone-joined', pad }));
   phone.on('left', (pad) => broadcast({ type: 'phone-left', pad }));
