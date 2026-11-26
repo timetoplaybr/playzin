@@ -18,6 +18,7 @@ import { BluetoothError } from './bluetooth/types.js';
 import { PowerError, type PowerController } from './power.js';
 import type { PhoneHub } from './phone/hub.js';
 import { UpdateError, type Updater } from './update/updater.js';
+import { BackupError, type BackupManager } from './backup.js';
 import { ScreenshotError, type ScreenshotStore } from './screenshot-store.js';
 
 export async function createServer(
@@ -33,6 +34,7 @@ export async function createServer(
   screenshots: ScreenshotStore,
   phone: PhoneHub,
   updater: Updater,
+  backup: BackupManager,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -258,6 +260,26 @@ export async function createServer(
     });
   }
 
+  // ---- Backup no pendrive ----
+  const backupFail = (reply: import('fastify').FastifyReply, err: unknown) =>
+    reply.code(err instanceof BackupError ? err.status : 500).send({ error: (err as Error).message });
+  app.get('/api/backup', async () => backup.getState());
+  app.post<{ Body: { screenshots?: unknown } }>('/api/backup/create', async (req, reply) => {
+    try {
+      return await backup.create(req.body?.screenshots !== false);
+    } catch (err) {
+      return backupFail(reply, err);
+    }
+  });
+  app.post<{ Body: { id?: unknown } }>('/api/backup/restore', async (req, reply) => {
+    if (typeof req.body?.id !== 'string') return reply.code(400).send({ error: '"id" do backup é obrigatório' });
+    try {
+      return await backup.restore(req.body.id);
+    } catch (err) {
+      return backupFail(reply, err);
+    }
+  });
+
   // ---- Perfis ----
   const profileFail = (reply: import('fastify').FastifyReply, err: unknown) =>
     err instanceof ProfileError
@@ -450,6 +472,7 @@ export async function createServer(
     send(socket, { type: 'phone-pads', pads: phone.pads() });
     send(socket, { type: 'phone-pairing', pairing: phone.pairing() });
     send(socket, { type: 'update', state: updater.getState() });
+    void backup.getState().then((state) => send(socket, { type: 'backup', state }));
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -485,6 +508,8 @@ export async function createServer(
   power.on('action', (action, simulated) => broadcast({ type: 'power-action', action, simulated }));
   phone.on('pads', (pads) => broadcast({ type: 'phone-pads', pads }));
   updater.on('state', (state) => broadcast({ type: 'update', state }));
+  backup.on('state', (state) => broadcast({ type: 'backup', state }));
+  backup.on('drive', (name) => broadcast({ type: 'backup-drive', name }));
   updater.on('restart', (version) => broadcast({ type: 'update-restarting', version }));
   phone.on('pairing', (pairing) => broadcast({ type: 'phone-pairing', pairing }));
   phone.on('joined', (pad) => broadcast({ type: 'phone-joined', pad }));

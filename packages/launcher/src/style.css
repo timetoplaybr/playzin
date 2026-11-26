@@ -3238,3 +3238,52 @@ svg {
 .upd-actions {
   margin-top: 18px;
 }
+
+/* ---------- backup no pendrive ---------- */
+
+.bk-empty {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.bk-empty svg {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  color: var(--muted);
+}
+
+.bk-empty div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 19px;
+}
+
+.bk-empty .muted {
+  font-size: 16px;
+}
+
+.bk-list {
+  margin-top: 14px;
+}
+
+.bk-list .setting-row {
+  margin: 0;
+}
+
+.bk-action .save-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bk-action .save-name svg {
+  width: 22px;
+  height: 22px;
+  flex: none;
+}

@@ -446,6 +446,27 @@ Apagar faz o jogo começar do zero na próxima vez.
 
 Só `localStorage` é coberto: dados em IndexedDB ou cookies continuam apenas no navegador.
 
+## Backup no pendrive
+
+Para não perder o progresso se o cartão SD falhar, ou para levar tudo para outro console:
+**Configurações → Backup no pendrive** (↓ até a linha, **A**), com um **pendrive comum** (sem jogo)
+plugado. Ao plugar um, a TV avisa.
+
+- **Fazer backup agora** copia perfis, saves, tempo de jogo, conquistas e, se quiser (**Incluir as
+  capturas**), o álbum. Vai para `PlayzinBackup/<data>/` no pendrive, em arquivos comuns (JSON e
+  imagens), que dá para abrir num PC. O backup é gravado numa pasta `.tmp` e só ganha o nome final no
+  fim: puxar o pendrive no meio não deixa um backup pela metade (a sobra é apagada no próximo backup).
+- **Restaurar** (A duas vezes num backup da lista) troca os dados deste console pelos do backup. Antes,
+  o console grava no mesmo pendrive uma **cópia automática** do que tinha (aparece na lista como
+  "cópia automática"), então dá para desfazer. A troca é montada ao lado e feita de uma vez; a TV
+  recarrega e avisa "Backup restaurado".
+- No Pi os pendrives ficam montados **somente leitura** (puxar no meio não estraga nada): o console
+  só aceita escrita durante a cópia e volta para somente leitura no fim.
+- Um pendrive com jogo (`playzin.json`) é um cartucho e não é usado para backup: o `pack` do comando
+  `playzin` limpa o pendrive ao gravar um jogo.
+- No computador, qualquer unidade de `PLAYZIN_DRIVE_ROOTS` (no Windows, D: a Z:) sem `playzin.json`
+  aparece como pendrive.
+
 ## Atualização do sistema pelo Wi-Fi
 
 Na TV: **Configurações → Atualização do sistema** (↓ até a linha, **A**). A tela mostra a versão
@@ -575,5 +596,6 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Perfis (até 4, com nome, ícone e cor), saves separados por perfil
 - [x] Tempo de jogo por perfil e por jogo
 - [ ] Partição só para os saves no Pi (para poder ligar o sistema somente leitura)
-- [ ] Backup dos saves num pendrive
+- [x] Backup dos saves num pendrive (e restaurar, com cópia automática antes)
+- [ ] Testar o backup no Raspberry Pi (montar o pendrive para escrita pelo UDisks2)
 - [ ] Testar a fonte UDisks2 e o kiosk no hardware real

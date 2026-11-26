@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { MANIFEST_FILE } from '@playzin/shared';
-import { CartridgeSource } from './types.js';
+import { CartridgeSource, type WritableMedia } from './types.js';
 
 /**
  * Observa pastas por polling. Cada subpasta imediata que contém um playzin.json
@@ -39,13 +39,20 @@ export class DirectorySource extends CartridgeSource {
     this.timer = undefined;
   }
 
+  /** Pastas e unidades do PC já aceitam escrita. */
+  async openWritable(key: string): Promise<WritableMedia> {
+    return { rootPath: key, close: async () => undefined };
+  }
+
   private async scan(): Promise<void> {
     if (this.scanning) return;
     this.scanning = true;
     try {
       const found = new Map<string, string>();
       for (const root of this.directRoots) {
-        const print = await fingerprint(path.join(root, MANIFEST_FILE));
+        // Unidade presente (pendrive no Windows): cartucho (tem playzin.json) ou pendrive comum,
+        // que serve para o backup dos saves.
+        const print = (await fingerprint(path.join(root, MANIFEST_FILE))) ?? ((await isDir(root)) ? 'pendrive' : undefined);
         if (print) found.set(root, print);
       }
       for (const root of this.roots) {
@@ -64,7 +71,7 @@ export class DirectorySource extends CartridgeSource {
       for (const key of [...found.keys()].sort()) {
         if (!this.present.has(key)) {
           this.present.set(key, found.get(key)!);
-          this.emit('inserted', { key, rootPath: key, source: this.name });
+          this.emit('inserted', { key, rootPath: key, source: this.name, label: driveLabel(key) });
         }
       }
     } catch (err) {
@@ -73,6 +80,20 @@ export class DirectorySource extends CartridgeSource {
       this.scanning = false;
     }
   }
+}
+
+async function isDir(p: string): Promise<boolean> {
+  try {
+    return (await fs.stat(p)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+/** "E:\\" vira "Unidade E:"; uma pasta vira o nome dela. */
+function driveLabel(key: string): string {
+  const drive = /^([A-Za-z]):[\\/]?$/.exec(key);
+  return drive ? `Unidade ${drive[1]!.toUpperCase()}:` : path.basename(key);
 }
 
 async function listSubdirs(root: string): Promise<string[]> {

@@ -1,4 +1,4 @@
-import { CartridgeSource } from './types.js';
+import { CartridgeSource, type WritableMedia } from './types.js';
 
 /**
  * Fonte para o Raspberry Pi: escuta o UDisks2 no D-Bus do sistema.
@@ -97,13 +97,39 @@ export class UdisksSource extends CartridgeSource {
       const mountPoint = await this.mountReadOnly(obj, props);
       if (!mountPoint) return;
 
+      const label = String((await props.Get(IFACE_BLOCK, 'IdLabel')).value ?? '').trim() || undefined;
       this.announced.add(objectPath);
-      this.emit('inserted', { key: objectPath, rootPath: mountPoint, source: this.name });
+      this.emit('inserted', { key: objectPath, rootPath: mountPoint, source: this.name, label });
     } catch (err) {
       this.emit('error', new Error(`Falha ao preparar ${objectPath}: ${(err as Error).message}`));
     } finally {
       this.pending.delete(objectPath);
     }
+  }
+
+  /**
+   * Backup: desmonta o pendrive (somente leitura) e monta de novo aceitando escrita. `close`
+   * desmonta (o que grava tudo no pendrive de vez) e volta a montar como somente leitura.
+   */
+  async openWritable(key: string): Promise<WritableMedia> {
+    if (!this.announced.has(key)) throw new Error('o pendrive não está mais no console');
+    const obj = await this.bus.getProxyObject(UDISKS, key);
+    const fsIface = obj.getInterface(IFACE_FILESYSTEM);
+    const noUi = { 'auth.no_user_interaction': new this.dbus.Variant('b', true) };
+    await fsIface.Unmount(noUi);
+    const rootPath = (await fsIface.Mount({ ...noUi, options: new this.dbus.Variant('s', 'rw') })) as string;
+    return {
+      rootPath,
+      close: async () => {
+        try {
+          await fsIface.Unmount(noUi);
+        } finally {
+          // Volta como estava: somente leitura (se o pendrive ainda estiver lá).
+          // eslint-disable-next-line no-unsafe-finally
+          return (await fsIface.Mount({ ...noUi, options: new this.dbus.Variant('s', 'ro') }).catch(() => undefined)) as string | undefined;
+        }
+      },
+    };
   }
 
   private handleGone(objectPath: string): void {

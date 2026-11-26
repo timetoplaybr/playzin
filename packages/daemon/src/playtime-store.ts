@@ -93,6 +93,11 @@ export class PlaytimeStore {
     return { id: game, name, totalSeconds: players.reduce((sum, p) => sum + p.seconds, 0), players };
   }
 
+  /** Os arquivos foram trocados por baixo (restauração de um backup): esquece o que estava em memória. */
+  reload(): void {
+    this.cache.clear();
+  }
+
   /** O perfil foi excluído (a pasta já sumiu junto com os saves). */
   forget(profile: string): void {
     this.cache.delete(profile);

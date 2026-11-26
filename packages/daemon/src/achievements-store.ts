@@ -134,6 +134,12 @@ export class AchievementStore {
     return { games, recent: recent.slice(0, RECENT_ACHIEVEMENTS) };
   }
 
+  /** Os arquivos foram trocados por baixo (restauração de um backup): esquece o que estava em memória. */
+  reload(): void {
+    this.catalog = null;
+    this.profiles.clear();
+  }
+
   /** O perfil foi excluído (a pasta já sumiu junto com os saves). */
   forget(profile: string): void {
     this.profiles.delete(profile);

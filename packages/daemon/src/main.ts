@@ -10,6 +10,7 @@ import { PlaytimeStore } from './playtime-store.js';
 import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
 import { PhoneHub } from './phone/hub.js';
 import { Updater } from './update/updater.js';
+import { BackupManager } from './backup.js';
 import { REPO_ROOT } from './config.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
@@ -83,7 +84,15 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone, updater);
+  // Backup no pendrive: depois de restaurar, perfis, tempo de jogo, conquistas e capturas leem tudo de novo.
+  const backup = new BackupManager(
+    { savesDir: config.savesDir, profilesFile: config.profilesFile, screenshotsDir: config.screenshotsDir },
+    version,
+    [profiles, playtime, achievements, screenshots],
+    { info: (m) => app.log.info(m), warn: (m) => app.log.warn(m) },
+  );
+
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone, updater, backup);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -99,6 +108,7 @@ async function main(): Promise<void> {
 
   for (const source of sources) {
     manager.attach(source);
+    backup.attach(source);
     await source.start();
   }
 

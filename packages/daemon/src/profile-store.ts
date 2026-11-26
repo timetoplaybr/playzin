@@ -74,6 +74,14 @@ export class ProfileStore extends EventEmitter<{ change: [Profile[]] }> {
     }
   }
 
+  /** Os arquivos foram trocados por baixo (restauração de um backup): lê tudo de novo e avisa a TV. */
+  async reload(): Promise<void> {
+    this.data = { format: 1, legacyOwner: null, profiles: [] };
+    this.existed = false;
+    await this.init();
+    this.emit('change', this.list());
+  }
+
   list(): Profile[] {
     return this.data.profiles.map((p) => ({ ...p }));
   }

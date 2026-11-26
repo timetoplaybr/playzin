@@ -212,6 +212,28 @@ connection.onMessage((msg) => {
       }
       break;
     }
+    case 'backup': {
+      const prev = store.get().backup;
+      store.update({ backup: msg.state });
+      const result = msg.state.result;
+      // Restaurou enquanto esta tela estava aberta: recarrega (perfis, saves, tempo de jogo... tudo do
+      // backup) e avisa depois. Só reage à MUDANÇA: a primeira mensagem depois de carregar a página
+      // (prev ainda null) já vem com o "restaurado" de antes e não pode recarregar de novo (seria um loop).
+      if (prev && result?.kind === 'restore' && prev.result?.at !== result.at) {
+        try {
+          sessionStorage.setItem('playzin:launcher:restored', result.id);
+        } catch {
+          /* sem sessionStorage: recarrega sem o aviso */
+        }
+        if (frame.isOpen) stopPlaying();
+        location.reload();
+      }
+      break;
+    }
+    case 'backup-drive':
+      if (frame.isOpen) gameToast.info(`Pendrive conectado: ${msg.name}`);
+      else home.notifyUpdate(`Pendrive conectado: dá para guardar os saves nele (Configurações → Backup no pendrive)`);
+      break;
     case 'update-restarting':
       // O daemon sai e volta na versão nova; quando ele voltar, a página recarrega (launcher novo).
       if (frame.isOpen) stopPlaying();
@@ -259,6 +281,16 @@ connection.onMessage((msg) => {
 });
 
 connection.connect();
+
+// Voltou de uma restauração de backup: avisa (a página foi recarregada para ler tudo de novo).
+try {
+  if (sessionStorage.getItem('playzin:launcher:restored')) {
+    sessionStorage.removeItem('playzin:launcher:restored');
+    window.setTimeout(() => home.notifyUpdate('Backup restaurado: perfis, saves e conquistas voltaram'), 3500);
+  }
+} catch {
+  /* sem sessionStorage */
+}
 
 // ---- Cursor: escondido, a não ser que alguém mexa no mouse ----
 let cursorTimer: number | undefined;

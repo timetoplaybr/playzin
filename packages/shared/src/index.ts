@@ -183,6 +183,57 @@ export interface PowerState {
   backend: 'logind' | 'mock' | 'none';
 }
 
+// ---- Backup no pendrive ----
+
+/** Pasta, na raiz do pendrive, onde ficam os backups (uma subpasta por backup). */
+export const BACKUP_FOLDER = 'PlayzinBackup';
+
+/** O que há neste console (ou num backup): para mostrar antes de copiar ou restaurar. */
+export interface BackupContents {
+  profiles: { name: string; icon: ProfileIcon; color: ProfileColor }[];
+  /** Jogos com progresso salvo (somando todos os perfis). */
+  games: number;
+  screenshots: number;
+  /** Tamanho das capturas (os saves são pequenos; as capturas é que pesam). */
+  screenshotBytes: number;
+  /** Tamanho de tudo (saves + capturas, se entrarem). */
+  bytes: number;
+}
+
+/** Um backup encontrado no pendrive. */
+export interface BackupEntry {
+  /** Nome da pasta (ex.: "2026-11-27_153012"). */
+  id: string;
+  createdAt: string;
+  /** Versão do sistema que fez o backup. */
+  systemVersion: string;
+  /** "before-restore": cópia automática feita antes de uma restauração. */
+  reason: 'manual' | 'before-restore';
+  contents: BackupContents;
+  /** Tem as capturas de tela? */
+  withScreenshots: boolean;
+}
+
+/** O pendrive comum (sem jogo) plugado agora. */
+export interface BackupDrive {
+  name: string;
+  freeBytes: number | null;
+}
+
+export interface BackupState {
+  drive: BackupDrive | null;
+  /** Backups no pendrive, os mais novos primeiro. */
+  backups: BackupEntry[];
+  /** O que há neste console agora. */
+  current: BackupContents | null;
+  phase: 'idle' | 'backing-up' | 'restoring';
+  /** 0–1 enquanto copia. */
+  progress: number;
+  /** Último resultado, para a tela mostrar ("Backup feito"...). */
+  result: { kind: 'backup' | 'restore'; at: string; id: string } | null;
+  error: string | null;
+}
+
 // ---- Atualização do sistema pelo Wi-Fi ----
 
 /** Uma versão nova publicada (o latest.json do GitHub Releases, já conferido pela assinatura). */
@@ -299,6 +350,9 @@ export function cleanProfileName(raw: unknown): string | null {
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
+  | { type: 'backup'; state: BackupState }
+  /** Um pendrive comum (sem jogo) acabou de entrar: dá para fazer backup nele. */
+  | { type: 'backup-drive'; name: string }
   | { type: 'update'; state: UpdateState }
   /** O console vai reiniciar agora para usar a versão nova (o launcher recarrega quando ele voltar). */
   | { type: 'update-restarting'; version: string }

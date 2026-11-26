@@ -53,6 +53,11 @@ export class ScreenshotStore {
   constructor(private readonly dir: string) {}
 
   /** Mais recentes primeiro. */
+  /** O álbum foi trocado por baixo (restauração de um backup): lê a pasta de novo. */
+  reload(): void {
+    this.cache = null;
+  }
+
   async list(): Promise<Screenshot[]> {
     const all = [...(await this.load()).values()];
     all.sort((a, b) => (a.takenAt < b.takenAt ? 1 : a.takenAt > b.takenAt ? -1 : b.id.localeCompare(a.id)));

@@ -145,6 +145,14 @@ Atualização pelo Wi-Fi (precisa de uma versão publicada no GitHub Releases):
   na versão nova (`journalctl -u playzin-daemon | grep atualização` conta o que aconteceu);
 - `cat /opt/playzin/current/package.json | grep version` confere a versão em uso.
 
+Backup no pendrive (um pendrive comum, sem jogo):
+
+- ao plugar, a TV avisa; em Configurações → Backup no pendrive, "Fazer backup agora" deve terminar
+  com "Backup feito" (`journalctl -u playzin-daemon | grep backup`);
+- no PC, o pendrive tem `PlayzinBackup/<data>/` com `backup.json`, `profiles.json` e `saves/`;
+- depois do backup o pendrive volta a ficar somente leitura: `findmnt -o TARGET,OPTIONS | grep media`
+  mostra `ro`.
+
 São os itens que o README ainda marca como não testados no hardware:
 
 1. **Kiosk:** a tela abre sozinha, aparece som pelo HDMI e o desempenho do Chromium é aceitável.

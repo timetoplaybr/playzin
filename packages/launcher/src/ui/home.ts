@@ -10,6 +10,7 @@ import { ActivityPanel } from './activity-panel';
 import { CapturesPanel } from './captures-panel';
 import { GamePage } from './game-page';
 import { UpdatePanel } from './update-panel';
+import { BackupPanel, summary as backupSummary } from './backup-panel';
 import { TrophiesPanel } from './trophies-panel';
 import { PowerPanel } from './power-panel';
 import { PowerScreen } from './power-screen';
@@ -78,7 +79,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | 'game' | 'update' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | 'game' | 'update' | 'backup' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -107,7 +108,8 @@ export class HomeUI {
   /** Página de detalhes do jogo (Y no jogo, ou A num jogo sem o cartucho). */
   private readonly gamePage: GamePage;
   private readonly updatePanel: UpdatePanel;
-  /** Configurações: 0 = protetor de tela, 1 = atualização do sistema. */
+  private readonly backupPanel: BackupPanel;
+  /** Configurações: 0 = protetor de tela, 1 = atualização do sistema, 2 = backup no pendrive. */
   private settingsRow = 0;
   /** Ao fechar o álbum aberto pela página do jogo, volta para ela. */
   private returnToGame: string | null = null;
@@ -213,6 +215,13 @@ export class HomeUI {
       library,
       sounds,
       host: () => this.el.panel,
+      hintsChanged: () => this.renderHints(),
+    });
+    this.backupPanel = new BackupPanel({
+      store,
+      sounds,
+      host: () => this.el.panel,
+      toast: (text, kind) => this.showToast(text, kind),
       hintsChanged: () => this.renderHints(),
     });
     this.updatePanel = new UpdatePanel({
@@ -490,6 +499,7 @@ export class HomeUI {
     this.renderTiles(justInserted);
     // Cartucho entrou ou saiu com a página do jogo aberta: muda o "no console" e o botão Jogar.
     if (this.panel === 'game' && state.cartridge !== prev.cartridge) this.gamePage.render();
+    if (state.backup !== prev.backup && (this.panel === 'backup' || this.panel === 'settings')) this.renderPanel();
     if (state.update !== prev.update) {
       this.renderUpdateBadge();
       if (this.panel === 'update' || this.panel === 'settings') this.renderPanel();
@@ -802,6 +812,7 @@ export class HomeUI {
     if (panel === 'trophies') this.trophiesPanel.open();
     if (panel === 'power') this.powerPanel.open();
     if (panel === 'update') this.updatePanel.open();
+    if (panel === 'backup') this.backupPanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
     this.el.panel.classList.toggle('album', panel === 'captures');
     this.el.panel.classList.toggle('trophies', panel === 'trophies');
@@ -834,8 +845,8 @@ export class HomeUI {
     this.returnToGame = null;
     if (!quiet && closing === 'captures' && back) this.openPanel('game', back);
     // Saiu da atualização: volta para Configurações (de onde ela abre).
-    if (!quiet && closing === 'update') {
-      this.settingsRow = 1;
+    if (!quiet && (closing === 'update' || closing === 'backup')) {
+      this.settingsRow = closing === 'update' ? 1 : 2;
       this.openPanel('settings');
     }
   }
@@ -932,6 +943,8 @@ export class HomeUI {
       this.activityPanel.render();
     } else if (this.panel === 'trophies') {
       this.trophiesPanel.render();
+    } else if (this.panel === 'backup') {
+      this.backupPanel.render();
     } else if (this.panel === 'update') {
       this.updatePanel.render();
     } else if (this.panel === 'game') {
@@ -964,6 +977,15 @@ export class HomeUI {
             this.store.get().update?.available
               ? 'Tem versão nova: aperte A para ver as novidades e instalar.'
               : 'Aperte A para procurar uma versão nova (o console também procura sozinho uma vez por dia).'
+          }</span>
+        </div>
+        <div class="setting-row${this.settingsRow === 2 ? ' selected' : ''}" data-row="2">
+          <span class="setting-name">Backup no pendrive</span>
+          <span class="setting-choice"><b>${this.store.get().backup?.drive ? escapeHtml(this.store.get().backup!.drive!.name) : 'Sem pendrive'}</b></span>
+          <span class="setting-help">${
+            this.store.get().backup?.current
+              ? `Guarda ${backupSummary(this.store.get().backup!.current!, true)} num pendrive comum, e traz de volta.`
+              : 'Guarda perfis, saves e capturas num pendrive comum, e traz de volta.'
           }</span>
         </div>
         <dl class="info">
@@ -1020,6 +1042,8 @@ export class HomeUI {
       html = this.activityPanel.hints(hint);
     } else if (this.panel === 'trophies') {
       html = this.trophiesPanel.hints(hint);
+    } else if (this.panel === 'backup') {
+      html = this.backupPanel.hints(hint);
     } else if (this.panel === 'update') {
       html = this.updatePanel.hints(hint);
     } else if (this.panel === 'game') {
@@ -1032,7 +1056,7 @@ export class HomeUI {
       html = (this.saves?.length ? hint('X', 'Apagar progresso') : '') + hint('B', 'Voltar');
     } else if (this.panel === 'settings') {
       html =
-        this.settingsRow === 1
+        this.settingsRow >= 1
           ? hint('A', 'Abrir') + hint('B', 'Voltar')
           : hint('↔', 'Protetor de tela') + hint('X', 'Ver agora') + hint('B', 'Voltar');
     } else if (this.panel) {
@@ -1048,6 +1072,12 @@ export class HomeUI {
       else html = hint('A', 'OK');
     }
     this.el.hints.innerHTML = html;
+  }
+
+  private openBackup(): void {
+    this.sounds.select();
+    this.closePanel(true);
+    this.openPanel('backup');
   }
 
   private openUpdate(): void {
@@ -1151,6 +1181,14 @@ export class HomeUI {
       if (result === 'close') this.closePanel();
       return;
     }
+    if (this.panel === 'backup') {
+      const result = this.backupPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
     if (this.panel === 'update') {
       const result = this.updatePanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
@@ -1211,7 +1249,7 @@ export class HomeUI {
       if (this.input.justPressed('back')) return this.closePanel();
       for (const [action, dy] of [['up', -1], ['down', 1]] as const) {
         if (!this.repeatPressed(action)) continue;
-        const next = clamp(this.settingsRow + dy, 0, 1);
+        const next = clamp(this.settingsRow + dy, 0, 2);
         if (next !== this.settingsRow) {
           this.settingsRow = next;
           this.sounds.move();
@@ -1220,6 +1258,7 @@ export class HomeUI {
         }
       }
       if (this.settingsRow === 1 && this.input.justPressed('confirm')) return this.openUpdate();
+      if (this.settingsRow === 2 && this.input.justPressed('confirm')) return this.openBackup();
       if (this.input.justPressed('confirm')) return this.closePanel();
       if (this.settingsRow === 0 && this.repeatPressed('left')) this.changeScreensaver(-1);
       if (this.settingsRow === 0 && this.repeatPressed('right')) this.changeScreensaver(1);
