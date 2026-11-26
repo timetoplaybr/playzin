@@ -54,7 +54,7 @@ export class DaemonConnection {
     return () => this.statusListeners.delete(listener);
   }
 
-  private send(msg: ClientMessage): void {
+  send(msg: ClientMessage): void {
     if (this.socket?.readyState === WebSocket.OPEN) this.socket.send(JSON.stringify(msg));
   }
 }

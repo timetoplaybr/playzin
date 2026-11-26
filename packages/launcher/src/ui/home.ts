@@ -91,7 +91,7 @@ export interface HomeActions {
  * e as dicas de botões no rodapé. Navega com controle, teclado ou mouse.
  */
 export class HomeUI {
-  private readonly input = new PlayerInput({ player: 0 });
+  private input = new PlayerInput({ player: 0 });
   private tiles: Tile[] = [];
   private row: 'profile' | 'tiles' | 'system' = 'tiles';
   private tileIndex = 0;
@@ -284,6 +284,9 @@ export class HomeUI {
     this.active = active;
     this.held = null;
     if (active) {
+      // Leitura nova ao voltar do jogo: o Enter usado no menu rápido ("Sair do jogo") e o que mais
+      // foi apertado enquanto o jogo estava aberto não podem "confirmar" nada aqui.
+      this.input = new PlayerInput({ player: 0 });
       this.root.classList.remove('sleeping');
       this.el.tiles.querySelectorAll('.launching').forEach((n) => n.classList.remove('launching'));
       if (this.rafId === undefined) this.loop();
@@ -445,7 +448,7 @@ export class HomeUI {
       if (this.panel === 'saves' && state.profileId !== prev.profileId) void this.loadSaves();
       if (this.panel === 'settings') this.renderPanel();
     }
-    if (state.bluetooth !== prev.bluetooth) this.updatePads();
+    if (state.bluetooth !== prev.bluetooth || state.phonePads !== prev.phonePads || state.phonePairing !== prev.phonePairing) this.updatePads();
     if (state.wifi !== prev.wifi && this.panel === 'wifi') this.renderPanel();
     if (state.power !== prev.power && this.panel === 'power') this.renderPanel();
 

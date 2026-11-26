@@ -8,7 +8,9 @@ import { LowBatteryWatcher } from './ui/battery';
 import { GameToast } from './ui/game-toast';
 import { Screensaver } from './ui/screensaver';
 import { Sounds } from './ui/sounds';
+import { getPlayerGamepads } from '@playzin/sdk';
 import { installRemap } from './ui/remap';
+import { onPhoneRumble, phoneInput, phonePadIndex, setPhonePads } from './ui/phone-pads';
 import { restoreTheme } from './ui/theme';
 import './style.css';
 
@@ -76,6 +78,32 @@ frame.onGameWindow = (win) => screensaver.watchGame(win);
 frame.inputBlocked = () => screensaver.blocksInput;
 
 const home = new HomeUI(stage, store, library, sounds, { play, screensaver });
+
+// ---- Celular como controle ----
+onPhoneRumble((id, ms) => connection.send({ type: 'phone-rumble', id, ms }));
+/** O último "Jogador N" mandado a cada celular (só manda de novo quando muda). */
+const phoneLabels = new Map<string, number | null>();
+function syncPhoneLabels(): void {
+  const players = getPlayerGamepads();
+  for (const phone of store.get().phonePads) {
+    const index = phonePadIndex(phone.id);
+    const position = index === null ? -1 : players.findIndex((p) => p?.index === index);
+    const player = position >= 0 ? position + 1 : null;
+    if (phoneLabels.has(phone.id) && phoneLabels.get(phone.id) === player) continue;
+    phoneLabels.set(phone.id, player);
+    connection.send({ type: 'phone-label', id: phone.id, player });
+  }
+}
+window.setInterval(syncPhoneLabels, 500);
+function phoneNotice(text: string): void {
+  if (frame.isOpen) gameToast.info(text);
+  else home.notify(text);
+}
+function playerOf(phoneId: string): number | null {
+  const index = phonePadIndex(phoneId);
+  const position = getPlayerGamepads().findIndex((p) => p?.index === index);
+  return position >= 0 ? position + 1 : null;
+}
 
 // ---- Bateria fraca: avisa no menu ou por cima do jogo ----
 const lowBattery = new LowBatteryWatcher((device) => {
@@ -152,6 +180,32 @@ connection.onMessage((msg) => {
       break;
     case 'power-error':
       home.onPowerError(msg.message);
+      break;
+    case 'phone-pads': {
+      const { added, removed } = setPhonePads(msg.pads);
+      store.update({ phonePads: msg.pads });
+      // Voltou (ou entrou): manda o número do jogador de novo.
+      for (const pad of added) phoneLabels.delete(pad.phoneId);
+      for (const pad of removed) phoneLabels.delete(pad.phoneId);
+      if (added.length || removed.length) window.dispatchEvent(new Event(added.length ? 'gamepadconnected' : 'gamepaddisconnected'));
+      syncPhoneLabels();
+      break;
+    }
+    case 'phone-input':
+      phoneInput(msg.id, msg.b, msg.x, msg.y);
+      break;
+    case 'phone-pairing':
+      store.update({ phonePairing: msg.pairing });
+      break;
+    case 'phone-joined': {
+      sounds.insert();
+      const player = playerOf(msg.pad.id);
+      phoneNotice(player ? `Celular conectado: Jogador ${player}` : `Celular conectado: ${msg.pad.name}`);
+      break;
+    }
+    case 'phone-left':
+      sounds.eject();
+      phoneNotice(`Celular desconectado: ${msg.pad.name}`);
       break;
     case 'wifi-connected':
       home.onWifiConnected(msg.ssid);

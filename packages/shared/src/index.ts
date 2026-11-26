@@ -183,6 +183,42 @@ export interface PowerState {
   backend: 'logind' | 'mock' | 'none';
 }
 
+// ---- Celular como controle ----
+
+/** Quantos celulares podem estar conectados ao mesmo tempo. */
+export const PHONE_MAX = 4;
+
+/** Um celular conectado como controle. */
+export interface PhonePad {
+  /** Identificador desta conexão (muda se o celular for desconectado pela TV). */
+  id: string;
+  /** "Celular 1", "iPhone 2"... */
+  name: string;
+  /** 0–3: a vaga do celular (vira o Gamepad.index 8 + slot no launcher). */
+  slot: number;
+  /** false = a conexão caiu (tela apagou) e o console espera ele voltar por alguns segundos. */
+  connected: boolean;
+}
+
+/** A tela "Usar o celular como controle" (o QR code). */
+export interface PhonePairing {
+  open: boolean;
+  /** Endereço que o QR code abre (null = o console está sem rede). */
+  url: string | null;
+  /** O QR code pronto, em SVG. */
+  qrSvg: string | null;
+  /** O código do QR deixa de valer nesta hora (ou ao fechar a tela). */
+  expiresAt: string | null;
+  /** Por que não dá para conectar agora (sem rede, desligado na configuração...). */
+  problem: string | null;
+}
+
+/**
+ * Botões do celular num número só: o bit i é o botão i do layout standard (0 = A ... 16 = Guide).
+ * Analógico esquerdo em x/y, de -1 a 1.
+ */
+export const PHONE_BUTTON_COUNT = 17;
+
 // ---- Perfis: até 4 pessoas por console, cada uma com seus saves ----
 
 export const MAX_PROFILES = 4;
@@ -220,6 +256,14 @@ export function cleanProfileName(raw: unknown): string | null {
 /** Mensagens que o daemon envia ao launcher via WebSocket. */
 export type ServerMessage =
   | { type: 'state'; cartridge: CartridgeInfo | null }
+  | { type: 'phone-pads'; pads: PhonePad[] }
+  | { type: 'phone-pairing'; pairing: PhonePairing }
+  /** Um celular acabou de entrar (para o aviso na TV). */
+  | { type: 'phone-joined'; pad: PhonePad }
+  /** Um celular saiu de vez (desconectado pela TV ou não voltou a tempo). */
+  | { type: 'phone-left'; pad: PhonePad }
+  /** Estado dos botões de um celular (b = bits dos botões, x/y = analógico). */
+  | { type: 'phone-input'; id: string; b: number; x: number; y: number }
   | { type: 'profiles'; profiles: Profile[] }
   | { type: 'bluetooth'; state: BluetoothState }
   | { type: 'bluetooth-paired'; device: BluetoothDevice; auto: boolean }
@@ -236,7 +280,13 @@ export type ServerMessage =
   | { type: 'cartridge-error'; message: string; source: string };
 
 /** Mensagens que o launcher envia ao daemon. */
-export type ClientMessage = { type: 'hello'; client: 'launcher' } | { type: 'ping' };
+export type ClientMessage =
+  | { type: 'hello'; client: 'launcher' }
+  | { type: 'ping' }
+  /** O jogo pediu vibração no controle do celular. */
+  | { type: 'phone-rumble'; id: string; ms: number }
+  /** Qual jogador o celular é agora (aparece na tela do celular). */
+  | { type: 'phone-label'; id: string; player: number | null };
 
 /** Mensagens trocadas via postMessage entre o jogo (dentro do iframe) e o launcher. */
 export type GameToLauncherMessage =

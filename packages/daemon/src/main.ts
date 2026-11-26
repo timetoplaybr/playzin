@@ -8,6 +8,7 @@ import type { BluetoothBackend } from './bluetooth/types.js';
 import { AchievementStore } from './achievements-store.js';
 import { PlaytimeStore } from './playtime-store.js';
 import { LogindBackend, MockPowerBackend, PowerController, type PowerBackend } from './power.js';
+import { PhoneHub } from './phone/hub.js';
 import { ProfileStore } from './profile-store.js';
 import { SaveStore } from './save-store.js';
 import { ScreenshotStore } from './screenshot-store.js';
@@ -67,7 +68,12 @@ async function main(): Promise<void> {
     warn: (m) => app.log.warn(m),
   });
 
-  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots);
+  const phone = new PhoneHub(config.phone, {
+    info: (m) => app.log.info(m),
+    warn: (m) => app.log.warn(m),
+  });
+
+  const app = await createServer(config, manager, saves, profiles, playtime, achievements, bluetooth, wifi, power, screenshots, phone);
 
   const sources: CartridgeSource[] = [];
   const wantUdisks =
@@ -100,6 +106,7 @@ async function main(): Promise<void> {
   }
 
   await app.listen({ host: config.host, port: config.port });
+  await phone.start();
   app.log.info(`Playzin pronto em http://${config.host}:${config.port}`);
   app.log.info(`fontes de cartucho: ${sources.map((s) => s.name).join(', ')}`);
   app.log.info(`saves em: ${config.savesDir}`);
@@ -117,6 +124,7 @@ async function main(): Promise<void> {
     for (const source of sources) await source.stop();
     await bluetooth.stop();
     await wifi.stop();
+    await phone.stop();
     await app.close();
     process.exit(0);
   };

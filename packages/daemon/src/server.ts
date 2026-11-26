@@ -16,6 +16,7 @@ import type { WifiController } from './wifi/controller.js';
 import { WifiError } from './wifi/types.js';
 import { BluetoothError } from './bluetooth/types.js';
 import { PowerError, type PowerController } from './power.js';
+import type { PhoneHub } from './phone/hub.js';
 import { ScreenshotError, type ScreenshotStore } from './screenshot-store.js';
 
 export async function createServer(
@@ -29,6 +30,7 @@ export async function createServer(
   wifi: WifiController,
   power: PowerController,
   screenshots: ScreenshotStore,
+  phone: PhoneHub,
 ): Promise<FastifyInstance> {
   const app = Fastify({ logger: { level: process.env.PLAYZIN_LOG_LEVEL ?? 'info' } });
 
@@ -222,6 +224,20 @@ export async function createServer(
     }
   });
 
+  // ---- Celular como controle (a tela da TV; os celulares falam com o PhoneHub, em outra porta) ----
+  app.get('/api/phone', async () => ({ pairing: phone.pairing(), pads: phone.pads() }));
+  app.post<{ Body: { on?: unknown } }>('/api/phone/pairing', async (req) => {
+    if (req.body?.on === false) {
+      phone.closePairing();
+      return phone.pairing();
+    }
+    return phone.openPairing();
+  });
+  app.delete<{ Params: { id: string } }>('/api/phone/:id', async (req, reply) => {
+    if (!phone.kick(req.params.id)) return reply.code(404).send({ error: 'celular desconhecido' });
+    return reply.code(204).send();
+  });
+
   // ---- Perfis ----
   const profileFail = (reply: import('fastify').FastifyReply, err: unknown) =>
     err instanceof ProfileError
@@ -411,6 +427,8 @@ export async function createServer(
     send(socket, { type: 'bluetooth', state: bluetooth.state() });
     send(socket, { type: 'wifi', state: wifi.state() });
     send(socket, { type: 'power', state: power.state() });
+    send(socket, { type: 'phone-pads', pads: phone.pads() });
+    send(socket, { type: 'phone-pairing', pairing: phone.pairing() });
     socket.on('message', (data) => {
       let msg: ClientMessage;
       try {
@@ -419,6 +437,8 @@ export async function createServer(
         return;
       }
       if (msg.type === 'hello' || msg.type === 'ping') send(socket, { type: 'state', cartridge: manager.current });
+      if (msg.type === 'phone-rumble' && typeof msg.id === 'string' && Number.isFinite(msg.ms)) phone.rumble(msg.id, msg.ms);
+      if (msg.type === 'phone-label' && typeof msg.id === 'string') phone.label(msg.id, msg.player);
     });
   });
 
@@ -440,6 +460,11 @@ export async function createServer(
   wifi.on('connected', (ssid) => broadcast({ type: 'wifi-connected', ssid }));
   wifi.on('error', (message, ssid, wrongPassword) => broadcast({ type: 'wifi-error', message, ssid, wrongPassword }));
   power.on('action', (action, simulated) => broadcast({ type: 'power-action', action, simulated }));
+  phone.on('pads', (pads) => broadcast({ type: 'phone-pads', pads }));
+  phone.on('pairing', (pairing) => broadcast({ type: 'phone-pairing', pairing }));
+  phone.on('joined', (pad) => broadcast({ type: 'phone-joined', pad }));
+  phone.on('left', (pad) => broadcast({ type: 'phone-left', pad }));
+  phone.on('input', (id, b, x, y) => broadcast({ type: 'phone-input', id, b, x, y }));
   power.on('error', (message) => broadcast({ type: 'power-error', message }));
 
   return app;

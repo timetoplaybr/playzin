@@ -70,14 +70,33 @@ export function padModelName(id: string): string {
  * texto): nada de referências a outras coisas deste arquivo.
  *
  * `getRemap(id)` devolve o remapeamento de um controle (pelo Gamepad.id; cada modelo pode ter o
- * seu) e é consultada a cada chamada (mudanças valem na hora). Devolve a função original.
+ * seu) e é consultada a cada chamada (mudanças valem na hora).
+ * `getExtra()` devolve controles virtuais (celulares) que entram na lista depois dos de verdade.
+ * Devolve a lista "crua": controles de verdade + virtuais, sem remapeamento.
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function installGamepadRemap(win: any, getRemap: (padId: string) => readonly number[] | null | undefined): () => any[] {
+export function installGamepadRemap(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  win: any,
+  getRemap: (padId: string) => readonly number[] | null | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getExtra?: () => any[] | null | undefined,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): () => any[] {
   const nav = win && win.navigator;
   if (!nav || typeof nav.getGamepads !== 'function') return () => [];
   if (nav.__playzinRaw) return nav.__playzinRaw;
-  const raw = nav.getGamepads.bind(nav);
+  const native = nav.getGamepads.bind(nav);
+  const raw = function rawGamepads() {
+    const list = Array.prototype.slice.call(native() || []);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let extra: any[] = [];
+    try {
+      extra = (getExtra && getExtra()) || [];
+    } catch {
+      extra = [];
+    }
+    return extra.length ? list.concat(extra) : list;
+  };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const remapPad = (pad: any) => {
     let sources: readonly number[] | null | undefined = null;
@@ -116,5 +135,8 @@ export function installGamepadRemap(win: any, getRemap: (padId: string) => reado
 export function buildGamepadRemapScript(): string {
   const read =
     'function(id){try{var f=window.parent!==window?window.parent.__playzinRemapFor:null;return typeof f==="function"?f(id):null}catch(e){return null}}';
-  return `<script data-playzin="gamepad-remap">(${installGamepadRemap.toString()})(window,${read});</script>`;
+  // Celulares conectados como controle: o launcher publica a lista; o jogo enxerga como controles comuns.
+  const extra =
+    'function(){try{var f=window.parent!==window?window.parent.__playzinExtraPads:null;return typeof f==="function"?f():[]}catch(e){return[]}}';
+  return `<script data-playzin="gamepad-remap">(${installGamepadRemap.toString()})(window,${read},${extra});</script>`;
 }

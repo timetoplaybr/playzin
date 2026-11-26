@@ -279,6 +279,29 @@ vibra ao ganhar o número, e a tela fecha sozinha quando todos os controles liga
 controle de um jogador desligar, os outros continuam com o mesmo número. Jogos feitos com o SDK
 seguem esta ordem; jogos que leem a Gamepad API direto usam a ordem de conexão.
 
+**Celular como controle:** em Controles → **Usar o celular como controle**, a TV mostra um QR code.
+Com o celular no **mesmo Wi-Fi** do console, aponte a câmera, abra o link e deite o celular: ele vira
+um controle completo (analógico, direcional, A/B/X/Y, LB/RB, View, Menu e o botão do Playzin, que
+abre o menu rápido), sem instalar nada. Até 4 celulares.
+
+- Para o console, o celular é um controle como outro qualquer: vale nos menus, em **todos os jogos**
+  (inclusive os que não usam o SDK), na ordem dos jogadores e no remapeamento (como o modelo
+  "Playzin Celular"). O celular mostra qual jogador ele é, vibra de leve a cada toque e vibra quando o
+  jogo pede (só no Android: o iPhone não deixa páginas vibrarem).
+- **Segurança:** os celulares falam com o console por uma porta separada (7779), aberta para a rede de
+  casa, que serve **só** a página do controle: nada da API, dos saves ou dos cartuchos. Para entrar, é
+  preciso o código do QR, que muda toda vez que a tela abre e para de valer quando ela fecha (ou em 5
+  minutos). Quem já entrou continua conectado.
+- **Tela apagou?** O celular reconecta sozinho como o mesmo jogador (tem 20 segundos para voltar).
+  Desligar o bloqueio automático da tela do celular durante o jogo evita isso.
+- Na mesma tela da TV dá para ver os celulares conectados e **desconectar** um (X duas vezes); ele
+  precisa do QR de novo para voltar.
+- No Wi-Fi de casa, a resposta costuma ficar entre 10 e 30 ms: ótimo para jogos casuais e de festa.
+
+**No computador** também funciona: o celular abre o endereço do PC na rede (o QR já traz). No Windows,
+o firewall pode perguntar se o Node pode receber conexões na rede privada: permita. Para desligar a
+porta dos celulares: `PLAYZIN_PHONE=0`.
+
 **Remapear botões:** em Controles → **Remapear botões**, escolha a função (A, B, X, Y, LB, RB,
 LT, RT, View, Menu, L3, R3 e o direcional), aperte **A** e depois o botão do controle que vai fazer
 aquela função: os dois trocam de lugar. Há também **Layout Nintendo** (A↔B e X↔Y) e **Restaurar o
@@ -461,6 +484,8 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 | `PLAYZIN_BLUETOOTH` | `auto` | `auto` (BlueZ se houver), `bluez`, `mock` (simulado) ou `none`. Também `--bluetooth=mock` |
 | `PLAYZIN_BT_AUTOPAIR` | ligado no Pi | Pareamento automático ao ligar sem controle pareado (`0` desliga). Também `--autopair` |
 | `PLAYZIN_WIFI` | `auto` | `auto` (NetworkManager se houver), `networkmanager`, `mock` (simulado) ou `none`. Também `--wifi=mock` |
+| `PLAYZIN_PHONE` | ligado | Celular como controle (`0` desliga a porta dos celulares). Também `--phone=0` |
+| `PLAYZIN_PHONE_PORT` | `7779` | Porta dos celulares (aberta para a rede de casa: só a página do controle) |
 | `PLAYZIN_POWER` | `auto` (Pi: `logind`) | Desligar/reiniciar pela tela: `auto` (logind só rodando como serviço do systemd; senão simulado), `logind`, `mock` ou `none`. Também `--power=mock` |
 | `PLAYZIN_SAVES_DIR` | `.playzin-data/saves` (Pi: `/var/lib/playzin/saves`) | Onde ficam os saves dos jogos |
 | `PLAYZIN_PROFILES_FILE` | `profiles.json` ao lado da pasta de saves | Lista de perfis do console |
@@ -476,6 +501,8 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
 - [x] Protetor de tela (no menu e jogando, com o tempo escolhido em Configurações)
+- [x] Celular como controle (QR code na TV, até 4, em todos os jogos)
+- [ ] Testar o celular como controle com celulares de verdade (Android e iPhone) no Raspberry Pi
 - [x] Remapear botões (para todos os controles ou por modelo; vale em todos os jogos e nos menus)
 - [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)
 - [x] Capturas de tela (View + RB, F8, menu rápido) com álbum na tela inicial

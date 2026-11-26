@@ -41,6 +41,11 @@ export class GameToast {
     this.push(escapeHtml(text), 'error');
   }
 
+  /** Aviso comum (ex.: "Celular conectado: Jogador 3"). */
+  info(text: string): void {
+    this.push(escapeHtml(text), 'info');
+  }
+
   achievement(name: string, unlocked: number, total: number): void {
     this.push(
       `<span class="ach-toast-icon">${icons.trophy}</span>` +
@@ -69,11 +74,11 @@ export class GameToast {
         item.done?.();
         this.next();
       }, 300); // espera a saída antes do próximo
-    }, item.kind === 'error' ? 5000 : item.kind === 'capture' ? 2500 : 4000);
+    }, item.kind === 'error' ? 5000 : item.kind === 'capture' ? 2500 : item.kind === 'info' ? 3500 : 4000);
   }
 }
 
-type Kind = 'error' | 'achievement' | 'capture';
+type Kind = 'error' | 'achievement' | 'capture' | 'info';
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);

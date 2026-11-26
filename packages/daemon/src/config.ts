@@ -39,6 +39,8 @@ export interface DaemonConfig {
    * (o console de verdade); fora disso, simulado, para não desligar o computador de quem desenvolve.
    */
   power: PowerMode;
+  /** Celular como controle: porta aberta para a rede de casa (só a página do controle). */
+  phone: { enabled: boolean; host: string; port: number };
 }
 
 function parseList(value: string | undefined): string[] | undefined {
@@ -101,6 +103,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, argv: string[] 
     autoPair: parseBool(arg(argv, 'autopair') ?? env.PLAYZIN_BT_AUTOPAIR),
     wifi: parseWifi(arg(argv, 'wifi') ?? env.PLAYZIN_WIFI ?? 'auto'),
     power: parsePower(arg(argv, 'power') ?? env.PLAYZIN_POWER ?? 'auto'),
+    phone: {
+      enabled: parseBool(arg(argv, 'phone') ?? env.PLAYZIN_PHONE) ?? true,
+      host: env.PLAYZIN_PHONE_HOST ?? '0.0.0.0',
+      port: parsePort(env.PLAYZIN_PHONE_PORT ?? '7779', 'PLAYZIN_PHONE_PORT'),
+    },
   };
 }
 
@@ -123,6 +130,12 @@ function parsePower(value: string): PowerMode {
     throw new Error(`Energia inválida: "${value}" (use auto, logind, mock ou none)`);
   }
   return value as PowerMode;
+}
+
+function parsePort(value: string, name: string): number {
+  const port = Number(value);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`${name} inválida: "${value}"`);
+  return port;
 }
 
 function parseBool(value: string | undefined): boolean | undefined {

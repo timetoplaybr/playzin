@@ -1,4 +1,5 @@
 import { identityRemap, installGamepadRemap, isIdentityRemap, isValidRemap, padModelKey, padModelName } from '@playzin/shared';
+import { virtualPads } from './phone-pads';
 
 const SETTING_KEY = 'playzin:launcher:remap';
 
@@ -15,6 +16,8 @@ interface RemapConfig {
 interface RemapHost {
   /** O jogo (window.parent) pergunta aqui o remapeamento de cada controle, pelo Gamepad.id. */
   __playzinRemapFor?: (padId: string) => number[] | null;
+  /** ...e os controles virtuais (celulares), que entram na lista dele como controles comuns. */
+  __playzinExtraPads?: () => unknown[];
 }
 
 let config: RemapConfig = load();
@@ -27,7 +30,9 @@ const listeners = new Set<() => void>();
  */
 export function installRemap(): void {
   (window as unknown as RemapHost).__playzinRemapFor = remapFor;
-  rawGetter = installGamepadRemap(window, remapFor) as () => (Gamepad | null)[];
+  (window as unknown as RemapHost).__playzinExtraPads = virtualPads;
+  // Celulares como controle entram aqui também: a lista "crua" já tem os controles virtuais.
+  rawGetter = installGamepadRemap(window, remapFor, virtualPads) as () => (Gamepad | null)[];
 }
 
 /** O remapeamento de um controle: o do modelo dele, se houver, senão o de todos (null = nenhum). */

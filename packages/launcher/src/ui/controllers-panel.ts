@@ -4,6 +4,8 @@ import type { ConsoleStore } from '../store';
 import { batteryLabel, cleanPadName, deviceForPad } from './battery';
 import { icons } from './icons';
 import { isRemapped } from './remap';
+import { PhonePanel } from './phone-panel';
+import { phoneNameForPad } from './phone-pads';
 import { RemapPanel } from './remap-panel';
 import type { Sounds } from './sounds';
 
@@ -12,7 +14,7 @@ export interface PanelInput {
   repeatPressed(action: Action): boolean;
 }
 
-type MainItem = { type: 'order' } | { type: 'remap' } | { type: 'add' } | { type: 'device'; device: BluetoothDevice };
+type MainItem = { type: 'order' } | { type: 'remap' } | { type: 'phone' } | { type: 'add' } | { type: 'device'; device: BluetoothDevice };
 
 /** Quantos jogadores a tela de ordem distribui (como nos consoles). */
 const MAX_PLAYERS = 4;
@@ -50,7 +52,8 @@ interface Deps {
  *   remap → remapear botões, para todos os controles e jogos (ui/remap-panel.ts)
  */
 export class ControllersPanel {
-  private view: 'main' | 'scan' | 'order' | 'remap' = 'main';
+  private view: 'main' | 'scan' | 'order' | 'remap' | 'phone' = 'main';
+  private readonly phone: PhonePanel;
   private readonly remap: RemapPanel;
   private order: OrderState | null = null;
   private index = 0;
@@ -59,6 +62,7 @@ export class ControllersPanel {
   private focusAddress: string | null = null;
 
   constructor(private readonly deps: Deps) {
+    this.phone = new PhonePanel({ store: deps.store, sounds: deps.sounds, toast: (t, k) => deps.toast(t, k), rerender: () => deps.rerender() });
     this.remap = new RemapPanel({ sounds: deps.sounds, toast: (t, k) => deps.toast(t, k), rerender: () => deps.rerender() });
     window.addEventListener('keydown', (e) => {
       if (this.order && (e.code === 'Enter' || e.code === 'NumpadEnter')) this.order.keyConfirm = true;
@@ -73,6 +77,7 @@ export class ControllersPanel {
 
   /** O painel foi fechado: se estava procurando, para a busca. */
   close(): void {
+    if (this.view === 'phone') this.phone.close();
     if (this.view === 'scan') void this.setScan(false);
     this.view = 'main';
     this.order = null;
@@ -98,7 +103,7 @@ export class ControllersPanel {
   }
 
   private mainItems(): MainItem[] {
-    const items: MainItem[] = [{ type: 'order' }, { type: 'remap' }];
+    const items: MainItem[] = [{ type: 'order' }, { type: 'remap' }, { type: 'phone' }];
     const bt = this.bt();
     if (!bt?.available) return items;
     return [...items, { type: 'add' }, ...bt.devices.filter((d) => d.paired).map((device) => ({ type: 'device' as const, device }))];
@@ -115,6 +120,14 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- input
 
   handleInput(input: PanelInput): 'close' | void {
+    if (this.view === 'phone') {
+      if (this.phone.handleInput(input) === 'back') {
+        this.view = 'main';
+        this.deps.sounds.back();
+        this.deps.rerender();
+      }
+      return;
+    }
     if (this.view === 'remap') {
       if (this.remap.handleInput(input) === 'back') {
         this.view = 'main';
@@ -157,6 +170,13 @@ export class ControllersPanel {
     if (this.view === 'main') {
       const item = this.mainItems()[this.index];
       if (item?.type === 'order') return this.startOrder();
+      if (item?.type === 'phone') {
+        this.view = 'phone';
+        this.phone.open();
+        this.deps.sounds.select();
+        this.deps.rerender();
+        return;
+      }
       if (item?.type === 'remap') {
         this.view = 'remap';
         this.remap.open();
@@ -296,12 +316,14 @@ export class ControllersPanel {
   // ---------------------------------------------------------------- desenho
 
   hints(hint: (glyph: string, label: string) => string): string {
+    if (this.view === 'phone') return this.phone.hints(hint);
     if (this.view === 'remap') return this.remap.hints(hint);
     if (this.view === 'order') return hint('A', 'No seu controle: entrar') + hint('☰', 'Concluir') + hint('B', 'Cancelar');
     if (this.view === 'scan') return (this.found().length ? hint('A', 'Parear') : '') + hint('B', 'Voltar');
     const item = this.mainItems()[this.index];
     if (item?.type === 'order') return hint('A', 'Mudar ordem') + hint('B', 'Voltar');
     if (item?.type === 'remap') return hint('A', 'Remapear') + hint('B', 'Voltar');
+    if (item?.type === 'phone') return hint('A', 'Mostrar o QR code') + hint('B', 'Voltar');
     if (item?.type === 'add') return hint('A', 'Adicionar') + hint('B', 'Voltar');
     if (item?.type === 'device') return hint('X', 'Esquecer') + hint('B', 'Voltar');
     return hint('B', 'Voltar');
@@ -316,6 +338,14 @@ export class ControllersPanel {
       }
     }
     this.index = Math.max(0, Math.min(this.index, Math.max(0, this.count() - 1)));
+    if (this.view === 'phone') {
+      el.innerHTML = this.phone.render();
+      el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
+      el.querySelectorAll<HTMLElement>('[data-index]').forEach((node) =>
+        node.addEventListener('click', (e) => this.phone.click(Number(node.dataset.index), e.target)),
+      );
+      return;
+    }
     if (this.view === 'remap') {
       el.innerHTML = this.remap.render();
       el.querySelector('li.selected')?.scrollIntoView({ block: 'nearest' });
@@ -359,7 +389,7 @@ export class ControllersPanel {
             }
             const device = deviceForPad(p, bt);
             return (
-              `<li class="pad-row"><span class="player-badge">P${i + 1}</span><span class="pad-name">${escapeHtml(cleanPadName(p.id))}</span>` +
+              `<li class="pad-row"><span class="player-badge">P${i + 1}</span><span class="pad-name">${escapeHtml(phoneNameForPad(p) ?? cleanPadName(p.id))}</span>` +
               (device?.battery != null
                 ? batteryLabel(device)
                 : `<span class="pad-map">${p.mapping === 'standard' ? 'mapeamento padrão' : 'mapeamento genérico'}</span>`) +
@@ -374,6 +404,13 @@ export class ControllersPanel {
       const selected = i === this.index ? ' selected' : '';
       if (item.type === 'order') {
         return `<li class="bt-add${selected}" data-index="${i}"><span class="bt-add-icon">${icons.gamepad}</span><span class="save-name">Mudar a ordem dos jogadores</span></li>`;
+      }
+      if (item.type === 'phone') {
+        const n = this.deps.store.get().phonePads.length;
+        return (
+          `<li class="bt-add remap-entry${selected}" data-index="${i}"><span class="bt-add-icon">${icons.phone}</span>` +
+          `<span class="save-name">Usar o celular como controle</span><span class="save-meta">${n === 0 ? '' : n === 1 ? '1 conectado' : `${n} conectados`}</span></li>`
+        );
       }
       if (item.type === 'remap') {
         return (
@@ -405,14 +442,14 @@ export class ControllersPanel {
       bluetooth = `<p class="muted">Este computador não tem o Bluetooth do console. No Raspberry Pi, é aqui que você pareia os
         controles. Para testar esta tela no PC, ligue o console com <code>npm run start:simulado</code>.</p>`;
     } else {
-      bluetooth = `<ul class="save-list">${items.slice(2).map((item, i) => itemHtml(item, i + 2)).join('')}</ul>`;
+      bluetooth = `<ul class="save-list">${items.slice(3).map((item, i) => itemHtml(item, i + 3)).join('')}</ul>`;
     }
 
     return `
       <h2>${icons.gamepad} Controles</h2>
       <h3 class="section-title">Jogadores</h3>
       <ul class="pad-list">${now}</ul>
-      <ul class="save-list order-entry">${itemHtml(items[0]!, 0)}${itemHtml(items[1]!, 1)}</ul>
+      <ul class="save-list order-entry">${itemHtml(items[0]!, 0)}${itemHtml(items[1]!, 1)}${itemHtml(items[2]!, 2)}</ul>
       <h3 class="section-title">Bluetooth${bt?.backend === 'mock' ? ' <span class="badge">simulado</span>' : ''}</h3>
       ${bluetooth}`;
   }
@@ -426,7 +463,7 @@ export class ControllersPanel {
       const pad = index === undefined ? undefined : pads.find((p) => p.index === index);
       const next = order !== null && order.doneAt === null && i === order.slots.length;
       const device = pad ? deviceForPad(pad, bt) : undefined;
-      const label = pad ? escapeHtml(cleanPadName(pad.id)) : next ? 'Aperte A no seu controle' : '';
+      const label = pad ? escapeHtml(phoneNameForPad(pad) ?? cleanPadName(pad.id)) : next ? 'Aperte A no seu controle' : '';
       return (
         `<li class="order-slot${pad ? ' filled' : ''}${next ? ' next' : ''}">` +
         `<span class="player-badge">P${i + 1}</span><span class="pad-name">${label}</span>` +
