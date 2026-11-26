@@ -192,9 +192,11 @@ function insert(project: GameProject, opts: { build: boolean; slot?: string }): 
   const tmp = path.join(slot, `.${manifest.id}.tmp`);
   fs.rmSync(tmp, { recursive: true, force: true });
   fs.cpSync(project.outDir, tmp, { recursive: true });
+  const replacing = fs.existsSync(dest);
   fs.rmSync(dest, { recursive: true, force: true });
   fs.renameSync(tmp, dest);
-  log.ok(`Inserido no console de desenvolvimento ${c.dim(`(${dest})`)}`);
+  // Já estava inserido: o console nota o playzin.json novo e troca a fita sozinho (o jogo aberto volta ao menu).
+  log.ok(`${replacing ? `Reinserido (v${manifest.version})` : 'Inserido'} no console de desenvolvimento ${c.dim(`(${dest})`)}`);
   log.info(c.dim('Abra http://127.0.0.1:7777 com o Playzin rodando (npm start na pasta dele).'));
 }
 

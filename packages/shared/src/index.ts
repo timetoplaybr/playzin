@@ -63,7 +63,11 @@ export interface GameAchievements {
 /** Resumo por jogo (GET /api/achievements). */
 export interface AchievementsSummary {
   games: { id: string; name: string; total: number; unlocked: number; lastUnlockedAt: string | null }[];
+  /** As últimas desbloqueadas pelo perfil, em qualquer jogo (mais nova primeiro, até RECENT_ACHIEVEMENTS). */
+  recent: { gameId: string; gameName: string; id: string; name: string; description: string; unlockedAt: string }[];
 }
+
+export const RECENT_ACHIEVEMENTS = 6;
 
 /** Resposta do desbloqueio (POST /api/achievements/:perfil/:jogo). */
 export interface AchievementUnlock {
@@ -236,7 +240,7 @@ export type ClientMessage = { type: 'hello'; client: 'launcher' } | { type: 'pin
 export type GameToLauncherMessage =
   | { source: 'playzin-sdk'; type: 'ready' }
   | { source: 'playzin-sdk'; type: 'exit' }
-  | { source: 'playzin-sdk'; type: 'achievement'; id: string };
+  | { source: 'playzin-sdk'; type: 'achievement'; id: string; silent?: boolean };
 
 export type LauncherToGameMessage = { source: 'playzin-launcher'; type: 'pause' | 'resume' };
 

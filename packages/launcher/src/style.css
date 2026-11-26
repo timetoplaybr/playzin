@@ -2166,26 +2166,6 @@ svg {
   color: #ffc531;
 }
 
-.ach-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  vertical-align: middle;
-}
-
-.ach-badge svg {
-  width: 16px;
-  height: 16px;
-}
-
-.ach-badge.complete {
-  color: #ffc531;
-}
-
-.ach-title {
-  margin-top: 26px;
-}
-
 .ach-progress {
   height: 6px;
   margin: 0 0 14px;
@@ -2528,4 +2508,210 @@ svg {
 .shot-caption .shot-delete svg {
   width: 100%;
   height: 100%;
+}
+
+/* ---------- Conquistas (tela só de conquistas, por perfil) ---------- */
+
+.panel.trophies {
+  width: 860px;
+  max-height: 560px; /* sem cobrir o rodapé com as dicas dos botões */
+}
+
+.tro-overview {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 20px;
+  margin: -6px 0 6px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background:
+    linear-gradient(120deg, rgba(255, 197, 49, 0.16), transparent 60%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.tro-avatar {
+  width: 72px;
+  height: 72px;
+  padding: 16px;
+  border-radius: 50%;
+}
+
+.tro-overview-text {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.tro-profile {
+  font-size: 22px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tro-total {
+  color: var(--muted);
+  font-size: 17px;
+}
+
+.tro-total b {
+  color: var(--text);
+  font-size: 20px;
+}
+
+.tro-progress {
+  height: 8px;
+  margin: 2px 0 0;
+}
+
+.tro-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.tro-stat {
+  display: grid;
+  justify-items: center;
+  min-width: 84px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.tro-stat b {
+  font-size: 24px;
+}
+
+.tro-stat small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tro-stat.gold b {
+  color: #ffc531;
+}
+
+.tro-recent {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.tro-recent li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  column-gap: 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  min-width: 0;
+}
+
+.tro-recent .ach-icon {
+  width: 34px;
+  height: 34px;
+  background: #ffc531;
+  color: #3a2700;
+}
+
+.tro-recent .ach-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.tro-recent-name,
+.tro-recent-meta {
+  grid-column: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tro-recent-name {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tro-recent-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.tro-pct {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.tro-pct svg {
+  width: 20px;
+  height: 20px;
+}
+
+.tro-game.complete .tro-pct,
+.tro-done {
+  color: #ffc531;
+}
+
+.tro-bar {
+  grid-column: 2 / span 2;
+  height: 8px;
+  margin: 0;
+}
+
+.tro-game-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: -10px 0 8px;
+}
+
+.tro-filters {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+}
+
+.tro-filter {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--muted);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tro-filter small {
+  margin-left: 4px;
+  opacity: 0.75;
+}
+
+.tro-filter.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.tro-ach {
+  cursor: pointer;
+  box-shadow: inset 0 0 0 3px transparent;
+}
+
+.tro-ach.selected {
+  box-shadow: inset 0 0 0 3px var(--accent);
+}
+
+.tro-empty {
+  padding: 12px 4px;
 }

@@ -64,7 +64,7 @@ export function writeManifest(file: string, manifest: CartridgeManifest): void {
     version: manifest.version,
     entry: manifest.entry,
   };
-  for (const key of ['description', 'cover', 'players', 'author'] as const) {
+  for (const key of ['description', 'cover', 'players', 'author', 'achievements'] as const) {
     if (manifest[key] !== undefined) ordered[key] = manifest[key];
   }
   // (intervalo de jogadores numa linha só: "players": [1, 2])

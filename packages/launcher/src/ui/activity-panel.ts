@@ -1,4 +1,4 @@
-import type { AchievementsSummary, GameAchievements, GamePlaytime, PlaytimeEntry, PlaytimeSummary } from '@playzin/shared';
+import type { GamePlaytime, PlaytimeEntry, PlaytimeSummary } from '@playzin/shared';
 import type { Library } from '../library';
 import { formatLastPlayed, formatPlaytime, formatSessions } from '../playtime';
 import type { ConsoleStore } from '../store';
@@ -20,7 +20,8 @@ interface Deps {
  * Tela "Atividade": os jogos do perfil ativo, do mais jogado para o menos jogado, com tempo,
  * vezes que abriu e a última vez. A num jogo mostra quanto cada perfil do console jogou dele.
  *   Lista:   ↑/↓ = jogo · A = ver quem jogou · B = fechar
- *   Detalhe: ↑/↓ = rolar (quem jogou e as conquistas do perfil) · B = voltar para a lista
+ *   Detalhe: ↑/↓ = rolar · B = voltar para a lista
+ * As conquistas ficam na tela própria delas (Conquistas).
  */
 export class ActivityPanel {
   private summary: PlaytimeSummary | null = null;
@@ -28,10 +29,6 @@ export class ActivityPanel {
   private index = 0;
   private detail: GamePlaytime | null = null;
   private detailLoading: string | null = null;
-  /** Conquistas do perfil ativo por jogo (desbloqueadas / total). */
-  private achievementCounts = new Map<string, { unlocked: number; total: number }>();
-  /** Conquistas do jogo aberto no detalhe, para o perfil ativo. */
-  private achievementDetail: GameAchievements | null = null;
   /** Evita que uma resposta atrasada (de outro perfil) apareça. */
   private request = 0;
 
@@ -58,18 +55,10 @@ export class ActivityPanel {
     const ticket = ++this.request;
     try {
       if (!profile) throw new Error('sem perfil');
-      const q = `?profile=${encodeURIComponent(profile.id)}`;
-      const [res, achievements] = await Promise.all([
-        fetch(`/api/playtime${q}`, { cache: 'no-store' }),
-        // Sem conquistas (ou erro nelas): a lista aparece do mesmo jeito.
-        fetch(`/api/achievements${q}`, { cache: 'no-store' })
-          .then((r) => (r.ok ? (r.json() as Promise<AchievementsSummary>) : null))
-          .catch(() => null),
-      ]);
+      const res = await fetch(`/api/playtime?profile=${encodeURIComponent(profile.id)}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(String(res.status));
       const summary = (await res.json()) as PlaytimeSummary;
       if (ticket !== this.request) return;
-      this.achievementCounts = new Map((achievements?.games ?? []).map((g) => [g.id, { unlocked: g.unlocked, total: g.total }]));
       this.summary = summary;
       this.failed = false;
       const kept = keepId ? summary.games.findIndex((g) => g.id === keepId) : -1;
@@ -87,20 +76,11 @@ export class ActivityPanel {
     this.detailLoading = gameId;
     if (!this.detail || this.detail.id !== gameId) this.render();
     try {
-      const profile = this.deps.store.profile();
-      const [res, achievements] = await Promise.all([
-        fetch(`/api/playtime/game/${encodeURIComponent(gameId)}`, { cache: 'no-store' }),
-        profile && this.achievementCounts.has(gameId)
-          ? fetch(`/api/achievements/game/${encodeURIComponent(gameId)}?profile=${encodeURIComponent(profile.id)}`, { cache: 'no-store' })
-              .then((r) => (r.ok ? (r.json() as Promise<GameAchievements>) : null))
-              .catch(() => null)
-          : Promise.resolve(null),
-      ]);
+      const res = await fetch(`/api/playtime/game/${encodeURIComponent(gameId)}`, { cache: 'no-store' });
       if (!res.ok) throw new Error(String(res.status));
       const detail = (await res.json()) as GamePlaytime;
       if (this.detailLoading !== gameId) return; // voltou antes de chegar
       this.detail = detail;
-      this.achievementDetail = achievements;
     } catch {
       if (this.detailLoading !== gameId) return;
       this.detailLoading = null;
@@ -114,7 +94,6 @@ export class ActivityPanel {
 
   private closeDetail(): void {
     this.detail = null;
-    this.achievementDetail = null;
     this.detailLoading = null;
     this.deps.sounds.back();
     this.render();
@@ -164,7 +143,7 @@ export class ActivityPanel {
           `<span class="act-name">${escapeHtml(g.name)}</span>` +
           `<span class="act-time">${formatPlaytime(g.seconds)}</span>` +
           `<span class="act-bar"><span style="width:${share}%"></span></span>` +
-          `<span class="act-meta">${formatSessions(g.sessions)} · ${formatLastPlayed(g.lastPlayedAt)}${this.achievementBadge(g.id)}</span>` +
+          `<span class="act-meta">${formatSessions(g.sessions)} · ${formatLastPlayed(g.lastPlayedAt)}</span>` +
           `</li>`
         );
       })
@@ -214,40 +193,7 @@ export class ActivityPanel {
       head +
       `<p class="act-summary">${icons.clock}<b>${formatPlaytime(this.detail.totalSeconds)}</b> no console · ` +
       `${players === 1 ? '1 pessoa jogou' : `${players} pessoas jogaram`}</p>` +
-      `<ul class="act-list">${rows}</ul>` +
-      this.achievementsHtml()
-    );
-  }
-
-  /** " · 🏆 2/4" na linha do jogo, quando ele tem conquistas. */
-  private achievementBadge(gameId: string): string {
-    const c = this.achievementCounts.get(gameId);
-    if (!c?.total) return '';
-    return ` · <span class="ach-badge${c.unlocked === c.total ? ' complete' : ''}">${icons.trophy}${c.unlocked}/${c.total}</span>`;
-  }
-
-  /** Lista de conquistas do perfil ativo no detalhe do jogo. */
-  private achievementsHtml(): string {
-    const a = this.achievementDetail;
-    if (!a?.total) return '';
-    const profile = this.deps.store.profile();
-    const rows = a.achievements
-      .map((x) => {
-        const done = Boolean(x.unlockedAt);
-        return (
-          `<li class="ach-row${done ? ' done' : ''}${x.hidden && !done ? ' secret' : ''}">` +
-          `<span class="ach-icon">${done ? icons.trophy : icons.lockSmall}</span>` +
-          `<span class="ach-name">${escapeHtml(x.name)}</span>` +
-          `<span class="ach-desc">${escapeHtml(x.description)}</span>` +
-          `<span class="ach-date">${done ? formatLastPlayed(x.unlockedAt!) : ''}</span>` +
-          `</li>`
-        );
-      })
-      .join('');
-    return (
-      `<h3 class="section-title ach-title">Conquistas${profile ? ` de ${escapeHtml(profile.name)}` : ''} · ${a.unlocked} de ${a.total}</h3>` +
-      `<div class="ach-progress"><span style="width:${Math.round((a.unlocked / a.total) * 100)}%"></span></div>` +
-      `<ul class="ach-list">${rows}</ul>`
+      `<ul class="act-list">${rows}</ul>`
     );
   }
 
@@ -264,7 +210,7 @@ export class ActivityPanel {
   handleInput(input: PanelInput): 'close' | void {
     if (this.inDetail) {
       if (input.justPressed('back')) this.closeDetail();
-      // O detalhe não tem itens para selecionar: o direcional rola (a lista de conquistas pode ser longa).
+      // O detalhe não tem itens para selecionar: o direcional rola (com muitos perfis, a lista passa da tela).
       if (input.repeatPressed('up')) this.deps.host().scrollBy({ top: -90, behavior: 'smooth' });
       if (input.repeatPressed('down')) this.deps.host().scrollBy({ top: 90, behavior: 'smooth' });
       return;

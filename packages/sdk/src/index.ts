@@ -29,11 +29,14 @@ function postToLauncher(payload: Payload<GameToLauncherMessage>): void {
  * Desbloqueia uma conquista declarada no playzin.json ("achievements"). O console guarda no
  * perfil de quem está jogando e mostra o aviso por cima do jogo, só na primeira vez: pode chamar
  * de novo sem medo (ex.: a cada frame em que a condição vale). Fora do Playzin, não faz nada.
+ *
+ * `silent: true` guarda sem aviso nem som: para levar ao console conquistas que o jogo já tinha
+ * salvo por conta própria (ex.: ao abrir, mandar todas as que o save do jogo já tem).
  */
-export function unlockAchievement(id: string): void {
+export function unlockAchievement(id: string, options: { silent?: boolean } = {}): void {
   if (unlockedHere().has(id)) return;
   unlockedHere().add(id);
-  postToLauncher({ type: 'achievement', id });
+  postToLauncher(options.silent ? { type: 'achievement', id, silent: true } : { type: 'achievement', id });
 }
 
 /** O perfil que está jogando já tem esta conquista? (Fora do Playzin: só as desta partida.) */

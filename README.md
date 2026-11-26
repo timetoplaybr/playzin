@@ -39,6 +39,10 @@ npm run cart:insert     # "insere" o cartucho de exemplo (copia para dev-slot/)
 npm run cart:eject      # remove todos os cartuchos do dev-slot
 ```
 
+Inserir de novo um jogo que já está no console troca a fita sozinho: o daemon percebe que o
+`playzin.json` do cartucho mudou, tira o antigo (o jogo aberto volta ao menu) e carrega a versão
+nova. O mesmo vale para um pendrive regravado com o console ligado.
+
 **Com um pendrive de verdade:** no Mac, o daemon observa `/Volumes`; no Windows, a raiz de cada
 unidade (D:, E:, F:… menos a do sistema). Copie o cartucho
 para a raiz do pendrive e plugue:
@@ -200,11 +204,18 @@ if (isAchievementUnlocked('ultimo-segundo')) { … } // o perfil que está jogan
 - Na primeira vez, o console mostra "Conquista desbloqueada" por cima do jogo, com um som. Chamar de
   novo não repete o aviso; um id que não está no `playzin.json` só gera um aviso no console do
   navegador (para quem está fazendo o jogo).
+- O jogo já salvava conquistas por conta própria? Ao abrir, mande as que ele já tem com
+  `unlockAchievement(id, { silent: true })`: o console guarda sem aviso nem som (o aviso fica para
+  as que forem desbloqueadas jogando).
 - Cada perfil tem as suas conquistas (`saves/<perfil>/_achievements.json`). O menu rápido mostra
-  "3 de 4 conquistas" e a tela **Atividade** mostra a contagem de cada jogo e, no detalhe, a lista.
+  "3 de 4 conquistas".
+- A tela **Conquistas** (troféu na fileira de ícones da tela inicial) é só delas: o total do perfil
+  (quantas, %, jogos completos), as últimas desbloqueadas em qualquer jogo e a lista de jogos com o
+  progresso de cada um. A num jogo abre as conquistas dele (↑/↓ percorre, Y filtra entre todas,
+  desbloqueadas e bloqueadas).
 - Só o jogo do cartucho inserido desbloqueia, e só as conquistas dele. O console guarda a lista de
-  cada jogo que já passou por ele (`saves/_achievements.json`), então a Atividade continua mostrando
-  as conquistas com o cartucho fora.
+  cada jogo que já passou por ele (`saves/_achievements.json`), então a tela Conquistas continua
+  mostrando as conquistas com o cartucho fora.
 - Fora do console, `unlockAchievement()` não faz nada.
 
 ### SDK (opcional, recomendado)
@@ -341,8 +352,8 @@ cor nova antes de salvar.
 **Tempo de jogo:** o console conta quanto cada perfil jogou de cada jogo. Aparece ao lado do nome
 do jogo na tela inicial, em *Dados salvos*, em *Configurações* (total) e em *Quem vai jogar?*.
 A tela **Atividade** lista os jogos do perfil do mais jogado para o menos jogado, com tempo,
-quantas vezes abriu e quando jogou por último (e as conquistas, nos jogos que têm); A num jogo
-mostra quanto cada perfil jogou dele e as conquistas do perfil ativo (o direcional rola a tela).
+quantas vezes abriu e quando jogou por último; A num jogo mostra quanto cada perfil jogou dele
+(o direcional rola a tela). As conquistas ficam na tela **Conquistas**.
 Só conta o tempo jogando de verdade: para com a janela escondida e depois de 10 minutos sem
 ninguém mexer em controle, teclado ou mouse. O launcher envia o tempo a cada 30 s, então desligar
 na tomada perde no máximo isso.
@@ -432,6 +443,7 @@ nada do que muda no sistema sobrevive a um reboot, **e isso inclui os saves dos 
 - [x] Desligar e reiniciar pela tela (logind no Pi, simulado no PC)
 - [x] Ordem dos jogadores (cada um aperta A no seu controle) e bateria dos controles, com aviso de bateria fraca
 - [x] Conquistas por perfil (`achievements` no playzin.json + `unlockAchievement()` do SDK)
+- [x] Tela de Conquistas na tela inicial (resumo do perfil, recentes, progresso por jogo, filtro)
 - [x] Capturas de tela (View + RB, F8, menu rápido) com álbum na tela inicial
 - [ ] Copiar as capturas para um pendrive
 - [ ] Testar a bateria de verdade (BlueZ Battery1 e /sys/class/power_supply) no Raspberry Pi

@@ -8,6 +8,7 @@ import { avatarHtml, ProfileScreen } from './profiles';
 import { BootSplash } from './boot-splash';
 import { ActivityPanel } from './activity-panel';
 import { CapturesPanel } from './captures-panel';
+import { TrophiesPanel } from './trophies-panel';
 import { PowerPanel } from './power-panel';
 import { PowerScreen } from './power-screen';
 import { applyTheme, restoreTheme, setProfileTheme } from './theme';
@@ -36,7 +37,7 @@ type Tile =
   | { kind: 'recent'; key: string; entry: LibraryEntry }
   | { kind: 'empty'; key: string };
 
-type SystemId = 'controllers' | 'wifi' | 'activity' | 'captures' | 'saves' | 'settings' | 'fullscreen' | 'power';
+type SystemId = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'fullscreen' | 'power';
 interface SystemButton {
   id: SystemId;
   label: string;
@@ -49,6 +50,7 @@ function systemButtons(): SystemButton[] {
     { id: 'controllers', label: 'Controles', icon: icons.gamepad },
     { id: 'wifi', label: 'Wi-Fi', icon: icons.wifi },
     { id: 'activity', label: 'Atividade', icon: icons.activity },
+    { id: 'trophies', label: 'Conquistas', icon: icons.trophy },
     { id: 'captures', label: 'Capturas', icon: icons.camera },
     { id: 'saves', label: 'Dados salvos', icon: icons.save },
     { id: 'settings', label: 'Configurações', icon: icons.settings },
@@ -74,7 +76,7 @@ function canGoFullscreen(): boolean {
   return !coversScreen;
 }
 
-type Panel = 'controllers' | 'wifi' | 'activity' | 'captures' | 'saves' | 'settings' | 'power' | null;
+type Panel = 'controllers' | 'wifi' | 'activity' | 'trophies' | 'captures' | 'saves' | 'settings' | 'power' | null;
 
 export interface HomeActions {
   play(cartridge: CartridgeInfo): void;
@@ -97,6 +99,7 @@ export class HomeUI {
   private readonly wifiPanel: WifiPanel;
   private readonly activityPanel: ActivityPanel;
   private readonly capturesPanel: CapturesPanel;
+  private readonly trophiesPanel: TrophiesPanel;
   private readonly powerPanel: PowerPanel;
   /** "Desligando…" por cima de tudo. */
   private readonly powerScreen: PowerScreen;
@@ -188,6 +191,13 @@ export class HomeUI {
     this.keyboard = new VirtualKeyboard(root, sounds);
     this.splash = new BootSplash(root, sounds);
     this.activityPanel = new ActivityPanel({
+      store,
+      library,
+      sounds,
+      host: () => this.el.panel,
+      hintsChanged: () => this.renderHints(),
+    });
+    this.trophiesPanel = new TrophiesPanel({
       store,
       library,
       sounds,
@@ -368,6 +378,7 @@ export class HomeUI {
     this.renderPlaytime();
     if (this.panel === 'saves' || this.panel === 'settings') this.renderPanel();
     if (this.panel === 'activity') this.activityPanel.reload();
+    if (this.panel === 'trophies') this.trophiesPanel.reload();
   }
 
   private renderPlaytime(): void {
@@ -712,9 +723,11 @@ export class HomeUI {
     if (panel === 'wifi') this.wifiPanel.open();
     if (panel === 'activity') this.activityPanel.open();
     if (panel === 'captures') this.capturesPanel.open();
+    if (panel === 'trophies') this.trophiesPanel.open();
     if (panel === 'power') this.powerPanel.open();
     this.el.panel.classList.toggle('wide', panel === 'activity');
     this.el.panel.classList.toggle('album', panel === 'captures');
+    this.el.panel.classList.toggle('trophies', panel === 'trophies');
     if (panel === 'saves') {
       this.saves = null;
       this.saveIndex = 0;
@@ -827,6 +840,8 @@ export class HomeUI {
       this.renderHints();
     } else if (this.panel === 'activity') {
       this.activityPanel.render();
+    } else if (this.panel === 'trophies') {
+      this.trophiesPanel.render();
     } else if (this.panel === 'captures') {
       this.capturesPanel.render();
     } else if (this.panel === 'power') {
@@ -885,6 +900,8 @@ export class HomeUI {
       html = this.wifiPanel.hints(hint);
     } else if (this.panel === 'activity') {
       html = this.activityPanel.hints(hint);
+    } else if (this.panel === 'trophies') {
+      html = this.trophiesPanel.hints(hint);
     } else if (this.panel === 'captures') {
       html = this.capturesPanel.hints(hint);
     } else if (this.panel === 'power') {
@@ -972,6 +989,14 @@ export class HomeUI {
     }
     if (this.panel === 'activity') {
       const result = this.activityPanel.handleInput({
+        justPressed: (a) => this.input.justPressed(a),
+        repeatPressed: (a) => this.repeatPressed(a),
+      });
+      if (result === 'close') this.closePanel();
+      return;
+    }
+    if (this.panel === 'trophies') {
+      const result = this.trophiesPanel.handleInput({
         justPressed: (a) => this.input.justPressed(a),
         repeatPressed: (a) => this.repeatPressed(a),
       });

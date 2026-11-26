@@ -239,7 +239,7 @@ export class GameFrame {
     if (data?.source !== 'playzin-sdk') return;
     if (data.type === 'ready') this.reveal();
     if (data.type === 'exit') this.requestExit();
-    if (data.type === 'achievement' && typeof data.id === 'string') void this.unlockAchievement(data.id);
+    if (data.type === 'achievement' && typeof data.id === 'string') void this.unlockAchievement(data.id, data.silent === true);
   }
 
   // ---------------------------------------------------------------- capturas
@@ -305,7 +305,7 @@ export class GameFrame {
     }
   }
 
-  private async unlockAchievement(id: string): Promise<void> {
+  private async unlockAchievement(id: string, silent = false): Promise<void> {
     const cartridge = this.current;
     const profileId = this.profileId;
     if (!cartridge || !profileId || this.achievements.has(id) || this.achievementsPending.has(id)) return;
@@ -322,7 +322,7 @@ export class GameFrame {
       if (this.current !== cartridge) return;
       this.publishAchievements(new Set([...this.achievements, id]));
       this.menu.setAchievements(body.unlocked ?? this.achievements.size, body.total ?? 0);
-      if (body.isNew) {
+      if (body.isNew && !silent) {
         this.sounds.achievement();
         this.toast.achievement(body.achievement.name, body.unlocked ?? 0, body.total ?? 0);
       }

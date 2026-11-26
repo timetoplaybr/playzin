@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
   PROFILE_ID_PATTERN,
+  RECENT_ACHIEVEMENTS,
   type AchievementDef,
   type AchievementStatus,
   type AchievementsSummary,
@@ -111,10 +112,15 @@ export class AchievementStore {
     if (!PROFILE_ID_PATTERN.test(profile)) throw new AchievementError('perfil inválido');
     const catalog = await this.loadCatalog();
     const data = await this.loadProfile(profile);
+    const recent: AchievementsSummary['recent'] = [];
     const games = Object.entries(catalog.games)
       .filter(([, g]) => g.achievements.length > 0)
       .map(([id, g]) => {
         const unlocked = data.games[id] ?? {};
+        for (const a of g.achievements) {
+          const at = unlocked[a.id];
+          if (at) recent.push({ gameId: id, gameName: g.name, id: a.id, name: a.name, description: a.description, unlockedAt: at });
+        }
         const dates = g.achievements.map((a) => unlocked[a.id]).filter((d): d is string => Boolean(d));
         return {
           id,
@@ -124,7 +130,8 @@ export class AchievementStore {
           lastUnlockedAt: dates.sort().at(-1) ?? null,
         };
       });
-    return { games };
+    recent.sort((a, b) => b.unlockedAt.localeCompare(a.unlockedAt));
+    return { games, recent: recent.slice(0, RECENT_ACHIEVEMENTS) };
   }
 
   /** O perfil foi excluído (a pasta já sumiu junto com os saves). */
